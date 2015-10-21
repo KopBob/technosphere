@@ -33,11 +33,11 @@ int main()
     // printf("\nEnter input:");
     get_params(&p, &q, &s);
 
-    // char *res = convert(p, q, s);
-    // printf("%s\n", res);
+    char *res = convert(p, q, s);
+    printf("%s\n", res);
 
     free(s);
-    // free(res);
+    free(res);
 }
 
 
@@ -116,7 +116,7 @@ char* convert(unsigned int p, unsigned int q, const char* s)
     return s_q_base;
 }
 
-void get_params(unsigned int* p, unsigned int* q, char* p_str[])
+void get_params(unsigned int* p, unsigned int* q, char* s[])
 {
     // Get P, Q
     int n;
@@ -166,5 +166,5 @@ void get_params(unsigned int* p, unsigned int* q, char* p_str[])
         p_str[i] = '\0';
     }
 
-    // *s = p_str; // -???
+    *s = p_str; // -???
 }
