@@ -1,24 +1,23 @@
 package ru.msu.cs.sphere;
 
 import java.io.InputStream;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 
 public class App {
 
     static public String[] TICKET_TYPES = {"взрослый", "детский", "льготный"};
-    static public DateTimeFormatter formatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z");
+    static public SimpleDateFormat FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z");
 
 
     static class Interval {
-        public LocalDate start;
-        public LocalDate end;
+        public Date start;
+        public Date end;
         public Map<String, Integer> ticketsDist;
 
-        public Interval(LocalDate inStart, LocalDate inEnd, Map<String, Integer> inTicketsDist) {
+        public Interval(Date inStart, Date inEnd, Map<String, Integer> inTicketsDist) {
             start = inStart;
             end = inEnd;
             ticketsDist = inTicketsDist;
@@ -32,7 +31,7 @@ public class App {
     }
 
     static class LogEntity {
-        public LocalDate date;
+        public Date date;
         public String ticketType;
         public Boolean action;
         public String userId;
@@ -40,7 +39,7 @@ public class App {
         public LogEntity() {
         }
 
-        public LogEntity(LocalDate inDate, String inTicketType,
+        public LogEntity(Date inDate, String inTicketType,
                          Boolean inAction, String inUserId) {
             date = inDate;
             ticketType = inTicketType;
@@ -50,7 +49,7 @@ public class App {
     }
 
     static class Reader {
-        public List<LogEntity> getData(InputStream inp) {
+        public List<LogEntity> getData(InputStream inp) throws ParseException {
             ArrayList<LogEntity> list = new ArrayList<LogEntity>();
 
             Scanner in = new Scanner(inp);
@@ -62,7 +61,7 @@ public class App {
                 if (inArray.length != 4)
                     System.out.println("Bad args");
 
-                LocalDate logEntityDate = LocalDate.parse(inArray[0], formatter);
+                Date logEntityDate = FORMATTER.parse(inArray[0]);
 
                 String ticketType = inArray[1];
                 Boolean logEntityAction = Byte.parseByte(inArray[2]) > 0;
@@ -89,9 +88,9 @@ public class App {
         Integer maxVisitorsAmount = -1;
 
         Integer currentVisitorsAmount = 0;
-        LocalDate currentDate = null;
+        Date currentDate = null;
         Integer previousVisitorsAmount = 0;
-        LocalDate previousDate = null;
+        Date previousDate = null;
 
         Map<String, Integer> ticketsDist = getEmptyTicketsDist();
 
@@ -117,9 +116,11 @@ public class App {
 
             previousVisitorsAmount = currentVisitorsAmount;
             previousDate = currentDate;
-
+            System.out.print(ticketsDist.get(log.ticketType));
+            System.out.print("  ");
             int count = ticketsDist.containsKey(log.ticketType) ? ticketsDist.get(log.ticketType) : 0;
             ticketsDist.put(log.ticketType, count + 1);
+            System.out.println(ticketsDist.get(log.ticketType));
         }
 
         if (previousVisitorsAmount.equals(maxVisitorsAmount)) {
@@ -130,15 +131,22 @@ public class App {
         return popularIntervals;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ParseException {
         Reader reader = new Reader();
         List<LogEntity> inArray = reader.getData(System.in);
 
         List<Interval> popularIntervals = computePopularTimeIntervals(inArray);
 
         for (Interval interval : popularIntervals) {
-            System.out.println(interval.start.toString());
-            System.out.println(interval.end.toString());
+            System.out.println(FORMATTER.format(interval.start));
+            System.out.println(FORMATTER.format(interval.end));
+            for (String type : TICKET_TYPES) {
+                System.out.print(type);
+                System.out.print("  ");
+                System.out.println(interval.ticketsDist.get(type));
+            }
+
+            System.out.println();
         }
     }
 

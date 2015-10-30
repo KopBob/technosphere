@@ -8,8 +8,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static org.junit.Assert.assertEquals;
@@ -41,19 +39,17 @@ public class AppTest
         LogEntity log2 = new LogEntity();
         LogEntity log3 = new LogEntity();
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z");
-
-        log1.date = LocalDate.parse("2015-07-10 11:30:28 +0300", formatter);
+        log1.date = App.FORMATTER.parse("2015-07-10 11:30:28 +0300");
         log1.ticketType = "взрослый";
         log1.action = Boolean.TRUE;
         log1.userId = "390";
 
-        log2.date = LocalDate.parse("2015-07-10 11:32:28 +0300", formatter);
+        log2.date = App.FORMATTER.parse("2015-07-10 11:32:28 +0300");
         log2.ticketType = "детский";
         log2.action = Boolean.TRUE;
         log2.userId = "391";
 
-        log3.date = LocalDate.parse("2015-07-10 11:33:28 +0300", formatter);
+        log3.date = App.FORMATTER.parse("2015-07-10 11:33:28 +0300");
         log3.ticketType = "взрослый";
         log3.action = Boolean.FALSE;
         log3.userId = "390";
