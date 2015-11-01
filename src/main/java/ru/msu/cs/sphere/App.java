@@ -33,7 +33,7 @@ public class App {
             ticketsDist = new HashMap<String, Integer>(inTicketsDist); // ???
         }
 
-        public void print() {
+        public String repr() {
             int visitorsAmount = 0;
             for (int num : ticketsDist.values())
                 visitorsAmount = visitorsAmount + num;
@@ -45,14 +45,15 @@ public class App {
             Float preferentialPortion =
                     ((float) ticketsDist.get(PREFERENTIAL_TICKET_TYPE) / visitorsAmount) * 100;
 
-            System.out.print(FORMATTER.format(this.start));
-            System.out.print(';');
-            System.out.print(FORMATTER.format(this.end));
+            String startStr = FORMATTER.format(this.start);
+            String endStr = this.end != null ? FORMATTER.format(this.end) : "";
 
-            System.out.printf(";%.1f", adultPortion);
-            System.out.printf(";%.1f", childishPortion);
-            System.out.printf(";%.1f", preferentialPortion);
-            System.out.println();
+            return String.format("%s;%s;%.1f;%.1f;%.1f", startStr, endStr,
+                    adultPortion, childishPortion, preferentialPortion);
+        }
+
+        public void print() {
+            System.out.println(this.repr());
         }
 
         public void prettyPrint() {
