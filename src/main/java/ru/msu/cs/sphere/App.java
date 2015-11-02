@@ -75,8 +75,7 @@ public class App {
         public Boolean action;
         public String userId;
 
-        public LogEntity() {
-        }
+        public LogEntity() {}
 
         public LogEntity(Date inDate, String inTicketType,
                          Boolean inAction, String inUserId) {
@@ -145,9 +144,8 @@ public class App {
 
         Collections.sort(logEntities, new LogEntityComparator()); // -- ??? how?
 
-        for (LogEntity log : logEntities) {
-            Integer action = log.action ? 1 : -1;
-            currentDate = log.date;
+        for (LogEntity currentLog : logEntities) {
+            Integer action = currentLog.action ? 1 : -1;
 
             currentVisitorsAmount += action;
 
@@ -158,15 +156,15 @@ public class App {
 
             if (previousVisitorsAmount > currentVisitorsAmount) {
                 if (previousVisitorsAmount.equals(maxVisitorsAmount)) {
-                    Interval interval = new Interval(previousDate, currentDate, ticketsDist);
+                    Interval interval = new Interval(previousDate, currentLog.date, ticketsDist);
                     popularIntervals.add(interval);
                 }
             }
 
             previousVisitorsAmount = currentVisitorsAmount;
-            previousDate = currentDate;
+            previousDate = currentLog.date;
 
-            ticketsDist.put(log.ticketType, ticketsDist.get(log.ticketType) + action);
+            ticketsDist.put(currentLog.ticketType, ticketsDist.get(currentLog.ticketType) + action);
         }
 
         if (previousVisitorsAmount.equals(maxVisitorsAmount)) {
