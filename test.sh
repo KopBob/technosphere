@@ -10,6 +10,7 @@ INPUT=(
     "21 9 ab"
     "21 9 AZB"
     "21 9 312321312312"
+    "10 2 A0B0"
 )
 OUTPUT=(
     "error"
@@ -18,6 +19,7 @@ OUTPUT=(
     "265"
     "error"
     "5165706746868025"
+    "error"
 )
 
 INPUT_LEN=${#INPUT[@]}

@@ -19,13 +19,6 @@ char* reverse(char*, int);
 
 int main()
 {
-    // printf("%c\n", get_numerial(10));
-    // printf("%c\n", get_numerial(10));
-    // printf("%c\n", get_numerial(35)); // -- Z
-    // printf("%c\n", get_numerial(36)); // -- [
-    // printf("%d\n", get_number('['));
-    // printf("%d\n", get_number('Z'));
-    // printf("%d\n", get_number('A'));
     unsigned int p, q;
     char *s = NULL;
 
@@ -44,12 +37,11 @@ int main()
 void throw_error(const char* msg)
 {
     printf("%s", msg);
-    exit(1);
+    exit(0);
 }
 
 unsigned int get_number(char c)
 {
-    c = toupper(c);
     return (c >= 'A') ? (c - 'A' + 10) : (c - '0');
 }
 
@@ -94,7 +86,7 @@ char* convert(unsigned int p, unsigned int q, const char* s)
     char *s_q_base = malloc(DEFAULT_STR_SIZE);
 
     unsigned long long d = s_10_base,
-                 r = 0;
+                       r = 0;
     size_t i = 0;
     do
     {
@@ -103,7 +95,15 @@ char* convert(unsigned int p, unsigned int q, const char* s)
         if(i == s_q_base_len)
         {
             s_q_base_len = i + DEFAULT_STR_SIZE;
-            s_q_base = realloc(s_q_base, s_q_base_len);
+            char* tmp_ret = realloc(s_q_base, s_q_base_len);
+
+            if(tmp_ret == NULL)
+            {
+                free(s_q_base);
+                throw_error(DEFAULT_ERROR);
+            }
+
+            s_q_base = tmp_ret;
         }
         s_q_base[i] = get_numerial(r);
 
@@ -120,7 +120,7 @@ void get_params(unsigned int* p, unsigned int* q, char* s[])
 {
     // Get P, Q
     int n;
-    n = scanf("%d %d ", p, q); // - is it ok?
+    n = scanf("%d %d ", p, q);
     if (n != 2)
         throw_error(DEFAULT_ERROR);
 
@@ -139,6 +139,8 @@ void get_params(unsigned int* p, unsigned int* q, char* s[])
         // read until user hits enter
         while (( c = getchar() ) != '\n' && c != EOF)
         {
+            c = toupper(c);
+
             if ((get_number(c) > *p - 1))
             {
                 free(p_str);
@@ -164,7 +166,9 @@ void get_params(unsigned int* p, unsigned int* q, char* s[])
             }
         }
         p_str[i] = '\0';
+    } else {
+        throw_error(DEFAULT_ERROR);
     }
 
-    *s = p_str; // -???
+    *s = p_str; // library style
 }
