@@ -4,21 +4,18 @@
 #include <ctype.h>
 #include <math.h>
 
-
 const char DEFAULT_ERROR[] = "[error]";
 const size_t DEFAULT_STR_SIZE = 128;
 
-void throw_error(const char*);
-void get_params(unsigned int*, unsigned int*, char* []);
+void throw_error(const char *);
+void get_params(unsigned int *, unsigned int *, char *[]);
 unsigned int get_number(char);
 char get_numerial(unsigned int);
 
-char* convert(unsigned int, unsigned int, const char*); // P Q S
-char* reverse(char*, int);
+char *convert(unsigned int, unsigned int, const char *); // P Q S
+char *reverse(char *, int);
 
-
-int main()
-{
+int main() {
     unsigned int p, q;
     char *s = NULL;
 
@@ -33,33 +30,26 @@ int main()
     free(res);
 }
 
-
-void throw_error(const char* msg)
-{
+void throw_error(const char *msg) {
     printf("%s", msg);
     exit(0);
 }
 
-unsigned int get_number(char c)
-{
+unsigned int get_number(char c) {
     return (c >= 'A') ? (c - 'A' + 10) : (c - '0');
 }
 
-char get_numerial(unsigned int n)
-{
+char get_numerial(unsigned int n) {
     // -- check???
     return (n >= 10) ? (n + 'A' - 10) : (n + '0');
 }
 
-
-char* reverse(char *str, int len)
-{
+char *reverse(char *str, int len) {
     char *p1, *p2;
 
-    if (! str || ! *str)
+    if (!str || !*str)
         return str;
-    for (p1 = str, p2 = str + len - 1; p2 > p1; ++p1, --p2)
-    {
+    for (p1 = str, p2 = str + len - 1; p2 > p1; ++p1, --p2) {
         *p1 ^= *p2;
         *p2 ^= *p1;
         *p1 ^= *p2;
@@ -67,38 +57,32 @@ char* reverse(char *str, int len)
     return str;
 }
 
-
-char* convert(unsigned int p, unsigned int q, const char* s)
-{
+char *convert(unsigned int p, unsigned int q, const char *s) {
     size_t s_len = strlen(s);
 
     // Convert to decimal
     unsigned long long s_10_base = 0;
     double power = pow(p, s_len);
 
-    for (int i = 0; i < s_len ; ++i) {
+    for (int i = 0; i < s_len; ++i) {
         power /= p;
-        s_10_base += get_number(s[i]) * power; 
+        s_10_base += get_number(s[i]) * power;
     }
 
     // Convert to Q based
     size_t s_q_base_len = DEFAULT_STR_SIZE;
     char *s_q_base = malloc(DEFAULT_STR_SIZE);
 
-    unsigned long long d = s_10_base,
-                       r = 0;
+    unsigned long long d = s_10_base, r = 0;
     size_t i = 0;
-    do
-    {
+    do {
         r = d % q;
         d = d / q;
-        if(i == s_q_base_len)
-        {
+        if (i == s_q_base_len) {
             s_q_base_len = i + DEFAULT_STR_SIZE;
-            char* tmp_ret = realloc(s_q_base, s_q_base_len);
+            char *tmp_ret = realloc(s_q_base, s_q_base_len);
 
-            if(tmp_ret == NULL)
-            {
+            if (tmp_ret == NULL) {
                 free(s_q_base);
                 throw_error(DEFAULT_ERROR);
             }
@@ -108,7 +92,7 @@ char* convert(unsigned int p, unsigned int q, const char* s)
         s_q_base[i] = get_numerial(r);
 
         i++;
-    } while(d > 0);
+    } while (d > 0);
 
     s_q_base = reverse(s_q_base, i);
     s_q_base[i] = '\0';
@@ -116,8 +100,7 @@ char* convert(unsigned int p, unsigned int q, const char* s)
     return s_q_base;
 }
 
-void get_params(unsigned int* p, unsigned int* q, char* s[])
-{
+void get_params(unsigned int *p, unsigned int *q, char *s[]) {
     // Get P, Q
     int n;
     n = scanf("%d %d ", p, q);
@@ -133,31 +116,26 @@ void get_params(unsigned int* p, unsigned int* q, char* s[])
     size_t i = 0;
     char c = EOF;
 
-    if(p_str != NULL)
-    {
+    if (p_str != NULL) {
         // int c = EOF; -- ???
         // read until user hits enter
-        while (( c = getchar() ) != '\n' && c != EOF)
-        {
+        while ((c = getchar()) != '\n' && c != EOF) {
             c = toupper(c);
 
-            if ((get_number(c) > *p - 1))
-            {
+            if ((get_number(c) > *p - 1)) {
                 free(p_str);
                 throw_error(DEFAULT_ERROR);
             }
 
             p_str[i++] = c;
 
-            // if reached len_max - realloc 
-            if(i == p_str_size)
-            {
+            // if reached len_max - realloc
+            if (i == p_str_size) {
                 p_str_size = i + DEFAULT_STR_SIZE;
-                char* p = realloc(p_str, p_str_size);
+                char *p = realloc(p_str, p_str_size);
 
                 // memmory request fails
-                if (p == NULL)
-                {
+                if (p == NULL) {
                     free(p_str);
                     throw_error(DEFAULT_ERROR);
                 }
