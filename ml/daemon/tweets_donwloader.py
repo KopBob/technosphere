@@ -3,15 +3,14 @@
 from __future__ import print_function
 
 import logging
-import sys
+import time
 import csv
 import json
 import tweepy
 import pymongo
+import bson
 
-from collections import defaultdict
-
-from bson import ObjectId
+from optparse import OptionParser
 
 logger = logging.getLogger('log')
 
@@ -21,7 +20,7 @@ CONSUMER_SECRET = "v0IpKZ6LxnUN0DgGGAmLE7tgzjiK6u5zMYZnSIFX5ghN8hUoTp"
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if isinstance(o, ObjectId):
+        if isinstance(o, bson.ObjectId):
             return str(o)
         return json.JSONEncoder.default(self, o)
 
@@ -42,11 +41,19 @@ def user_ids_from_csv(path_to_file):
     return array
 
 
-class TweetsDownloader(object):
-    LOG_DATA_FILE = "./files/twt_downloader_log_data.json"
+def convert_ids_to_int64(ids):
+    return [bson.int64.Int64(id) for id in ids]
 
-    def __init__(self, collection, **kwargs):
-        self.collection = collection
+
+class TweetsDownloader(object):
+    def __init__(self, api, tweets_collection, users_collection,
+                 errors_collection, **kwargs):
+        self.api = api
+
+        self.tweets_collection = tweets_collection
+        self.users_collection = users_collection
+        self.errors_collection = errors_collection
+
         self.pages_count = kwargs.get('pages_count', 5)
         self.tweets_threshold = kwargs.get('tweets_threshold', 500)
 
@@ -58,8 +65,8 @@ class TweetsDownloader(object):
         }
 
         self._cached_users_info = {}
-        self._failed_tweets = defaultdict(list)
-        self._protected_users = []
+
+        self.__stamp = int(time.time())
 
     @property
     def users_info(self):
@@ -70,48 +77,63 @@ class TweetsDownloader(object):
         return self._cached_users_info
 
     def download(self, user_ids):
-        for i, user_id in enumerate(user_ids):
-            logger = logging.getLogger('twitter_daemon.%d' % user_id)
+        user_ids_for_downloading = self._filter_user_ids(convert_ids_to_int64(user_ids))
+
+        logger.info("Start downloader %d", self.__stamp)
+        logger.info("Will load %d from %d" % (len(user_ids_for_downloading), len(user_ids)))
+        for i, user_id in enumerate(user_ids_for_downloading):
+            user_logger = logging.getLogger('twitter_daemon.%d' % user_id)
+            user_logger.setLevel(level=logging.DEBUG)
 
             user_info = self.users_info.get(user_id, None)
             max_id = None
 
             if user_info:
                 if user_info.get("tweets_count") > self.tweets_threshold:
-                    logger.warn("To mutch tweets.")
+                    self._log_error(Exception("Tweets limit exceeded"), {"user_id": user_id})
                     continue
 
                 max_id = user_info.get("last_tweet_id") - 1 \
                     if user_info.get("last_tweet_id") else None
 
+            user_logger.debug("start loading user")
             try:
-                cursor = tweepy.Cursor(api.user_timeline,
+                cursor = tweepy.Cursor(self.api.user_timeline,
                                        user_id=user_id, max_id=max_id, **self.api_settings)
-
-                logger.debug("start loading user %d", int(user_id))
                 for j, page in enumerate(cursor.pages(self.pages_count)):
-                    logger.debug("(%d) |(%d) %d/%d", i + 1, len(page), j + 1, self.pages_count)
+                    user_logger.debug("(%d) |(%d) %d/%d", i + 1, len(page), j + 1, self.pages_count)
 
                     tweets_json = [t._json for t in list(page)]
                     try:
-                        self.collection.insert_many(tweets_json)
-                    except pymongo.errors.BulkWriteError as e:
-                        logger.error(e)
-                        self._failed_tweets[user_id] += tweets_json
+                        self.tweets_collection.insert_many(tweets_json)
+                    except pymongo.errors.PyMongoError as e:
+                        self._log_error(e, {"tweets": tweets_json})
             except tweepy.error.TweepError as e:
-                logger.error(e)
-                if e.response.status_code == 401:
-                    self._protected_users.append(user_id)
-                    continue
-                else:
-                    raise e
+                self._log_error(e, {"user_id": user_id})
 
-        self._save_execution_data()
+    def _log_error(self, exception, data, **kwargs):
+        logger.error(exception)
+
+        error_entity = {"stamp": self.__stamp}
+
+        if issubclass(type(exception), pymongo.errors.PyMongoError):
+            error_entity.update({"type": "mongo"})
+        elif issubclass(type(exception), tweepy.error.TweepError):
+            error_entity.update({"type": "twitter"})
+        else:
+            error_entity.update({"type": "none"})
+
+        error_entity.update({
+            "msg": repr(exception),
+            "data": data
+        })
+
+        self.errors_collection.insert(error_entity)
 
     def _download_latest_tweets(self):
         users_info = {}
 
-        cursor = self.collection.aggregate([
+        cursor = self.tweets_collection.aggregate([
             {"$project": {"id": "$id", "user_id": "$user.id"}},
             {"$sort": {"id": -1}},
             {"$group": {
@@ -119,7 +141,7 @@ class TweetsDownloader(object):
                 "last_tweet_id": {"$last": "$id"},
                 "tweets_count": {"$sum": 1}
             }},
-        ])
+        ], allowDiskUse=True)
 
         for t in cursor:
             u_id = t.get("_id").get('id') if isinstance(t.get("_id"), dict) \
@@ -131,30 +153,120 @@ class TweetsDownloader(object):
 
         return users_info
 
-    def _save_execution_data(self):
-        logger.info('Saving log data')
+    def _filter_user_ids(self, user_ids):
+        users_in_db_cursor = self.tweets_collection.aggregate([
+            {"$match": {"user.id": {"$in": user_ids}}},
+            {"$project": {"id": "$id", "user_id": "$user.id"}},
+            {"$sort": {"id": -1}},
+            {"$group": {
+                "_id": "$user_id",
+                "last_tweet_id": {"$last": "$id"},
+                "tweets_count": {"$sum": 1}
+            }},
+        ], allowDiskUse=True)
 
-        log_data = {
-            "failed_tweets": self._failed_tweets,
-            "protected_users": self._protected_users
-        }
-        save_json(log_data, self.LOG_DATA_FILE)
+        users_info_cursor = self.users_collection.aggregate([
+            {"$match": {"id": {"$in": user_ids}}},
+            {"$project": {"_id": "$id", "statuses_count": "$statuses_count"}},
+        ], allowDiskUse=True)
 
+        users_in_db = list(users_in_db_cursor)
+        users_info = list(users_info_cursor)
+
+        users_in_db_dict = {u["_id"]: {"last_tweet_id": u["last_tweet_id"], "tweets_count": u["tweets_count"]} for u in
+                            users_in_db}
+        self._cached_users_info = users_in_db_dict
+
+        users_info_dict = {u["_id"]: {"statuses_count": u["statuses_count"]} for u in users_info}
+
+        target_arr = []
+
+        for id in user_ids:
+            if id not in users_in_db_dict.keys():
+                target_arr.append(id)
+                continue
+
+            if id not in users_info_dict.keys():
+                print("Unknown user", id)
+                target_arr.append(id)
+                continue
+
+            current = users_in_db_dict.get(id).get('tweets_count')
+            potential = users_info_dict.get(id).get('statuses_count')
+
+            if current / 200 == potential / 200:
+                continue
+
+            if current < potential:
+                if current < self.tweets_threshold:
+                    target_arr.append(id)
+                    continue
+
+        return target_arr
+
+
+def run(settings):
+    auth = tweepy.AppAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+    api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+    db = pymongo.MongoClient(settings.get("db_url"))
+
+    logger.info("Getting user ids..")
+    user_ids = user_ids_from_csv(settings.get("csv_file"))
+
+    tweets_collection = db.sphere_kaggle[settings.get("tweets_collection")]
+    users_collection = db.sphere_kaggle[settings.get("users_collection")]
+    errors_collection = db.sphere_kaggle[settings.get("errors_collection")]
+
+    tweets_collection.create_index('id', unique=True)
+    users_collection.create_index('id', unique=True)
+
+    downloader = TweetsDownloader(api=api,
+                                  tweets_collection=tweets_collection,
+                                  users_collection=users_collection,
+                                  errors_collection=errors_collection)
+    downloader.download(user_ids)
+
+
+SETTINGS = {
+    "debug": {
+        "csv_file": "./files/debug.csv",
+        "tweets_collection": "debug"
+    },
+    "test": {
+        "csv_file": "./files/twitter_test.csv",
+        "tweets_collection": "test_tweets"
+    },
+    "train": {
+        "csv_file": "./files/twitter_train.csv",
+        "tweets_collection": "train_tweets"
+    }
+}
+
+DEFAULT_SETTINGS = {
+    "db_url": "mongodb://donkey:27117/",
+    "errors_collection": "errors",
+    "users_collection": "users"
+}
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR,
-                        format='%(levelname)s\t%(name)s\t%(funcName)s\t%(message)s')
+                        format='%(asctime)s %(levelname)s\t%(name)s %(funcName)s\t%(message)s')
     logger.setLevel(level=logging.DEBUG)
 
-    auth = tweepy.AppAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-    api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+    parser = OptionParser()
+    parser.add_option("-d", "--dataset", dest="dataset",
+                      help=("dataset for downloading (%s)" % "/".join(SETTINGS.keys())))
 
-    db = pymongo.MongoClient('mongodb://donkey:27017/')
+    (options, args) = parser.parse_args()
 
-    logger.info("Getting user ids..")
-    user_ids = user_ids_from_csv("./files/twitter_test.csv")
+    if not options.dataset:
+        parser.error('dataset not given')
+    elif options.dataset not in SETTINGS.keys():
+        parser.error('%s - wrong dataset' % options.dataset)
 
-    db.sphere_kaggle.test_tweets.create_index('id', unique=True)
-    downloader = TweetsDownloader(db.sphere_kaggle.test_tweets)
-    logger.info("Start downloading..")
-    downloader.download(user_ids)
+    app_settings = {}
+    app_settings.update(DEFAULT_SETTINGS)
+    app_settings.update(SETTINGS.get(options.dataset))
+
+    logger.info(app_settings)
+    run(app_settings)
