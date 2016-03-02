@@ -12,10 +12,9 @@ import bson
 
 from optparse import OptionParser
 
-logger = logging.getLogger('log')
+from .private_constants import CONSUMER_KEY, CONSUMER_SECRET, DB_URL
 
-CONSUMER_KEY = "wTOj2975uKAhyIyJkrjod2wju"
-CONSUMER_SECRET = "v0IpKZ6LxnUN0DgGGAmLE7tgzjiK6u5zMYZnSIFX5ghN8hUoTp"
+logger = logging.getLogger('log')
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -243,7 +242,7 @@ SETTINGS = {
 }
 
 DEFAULT_SETTINGS = {
-    "db_url": "mongodb://donkey:27117/",
+    "db_url": DB_URL,
     "errors_collection": "errors",
     "users_collection": "users"
 }

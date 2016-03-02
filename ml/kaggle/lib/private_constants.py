@@ -1,0 +1,4 @@
+CONSUMER_KEY = "wTOj2975uKAhyIyJkrjod2wju"
+CONSUMER_SECRET = "v0IpKZ6LxnUN0DgGGAmLE7tgzjiK6u5zMYZnSIFX5ghN8hUoTp"
+
+DB_URL = "mongodb://donkey:27117/",
