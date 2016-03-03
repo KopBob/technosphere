@@ -7,14 +7,15 @@ import os
 import linecache
 import random
 import urlparse
+import urllib
 
 from collections import defaultdict, Counter
 
-
 threshold_filter = lambda counter, threshold: filter(lambda f: f[1] > threshold, counter.most_common())
 len_filter = lambda array: filter(len, array)
-get_ext = lambda x: os.path.splitext(x)[1]
+get_ext = lambda x: os.path.splitext(x)[1][1:]
 num_inside = lambda x: True if re.match(r"\D+\d+\D+", x) else False
+unquote = lambda segments: map(urllib.unquote_plus, segments)
 
 
 def lod2dol(lod):
@@ -38,7 +39,7 @@ class FeatureExtractor(object):
     # segment_ext_substr[0-9]_<index>:<extension value>
     @staticmethod
     def segment_ext_substr_num_index(urls, threshold=100):
-        segs = [dict(enumerate(len_filter(url.path.split('/')))) for url in urls]
+        segs = [dict(enumerate(unquote(len_filter(url.path.split('/'))))) for url in urls]
 
         seg_by_index = lod2dol(segs)
 
@@ -53,7 +54,7 @@ class FeatureExtractor(object):
             for (flag, ext), count in counter.items():
                 if flag:
                     if count > threshold:
-                        result.append("segment_ext_substr[0-9]_%d:%s" % (seg + 1, ext))
+                        result.append(("segment_ext_substr[0-9]_%d:%s" % (seg, ext), count))
 
         return result
 
@@ -63,14 +64,13 @@ class FeatureExtractor(object):
         segs = [dict(enumerate(len_filter(url.path.split('/')))) for url in urls]
 
         seg_by_index = lod2dol(segs)
-
         func = lambda c: c[True] if c[True] > c[False] else 0
 
-        t = {k: Counter(map(num_inside, seg_by_index[k]))[True] for k in seg_by_index.keys()}
+        t = {k: Counter(map(num_inside, unquote(seg_by_index[k])))[True] for k in seg_by_index.keys()}
 
-        substr_num_segs = {k: 1 for k, v in t.items() if v > threshold}
+        substr_num_segs = {k: v for k, v in t.items() if v > threshold}
 
-        result = ["segment_substr[0-9]_%d:1" % (seg + 1) for seg in substr_num_segs.keys()]
+        result = [("segment_substr[0-9]_%d:1" % (seg), count) for seg, count in substr_num_segs.items()]
 
         return result
 
@@ -89,7 +89,7 @@ class FeatureExtractor(object):
 
         for seg, ext_array in exts.items():
             for ext, count in ext_array:
-                result.append("segment_ext_%s:%s" % (seg + 1, ext))
+                result.append(("segment_ext_%s:%s" % (seg, ext), count))
 
         return result
 
@@ -100,13 +100,12 @@ class FeatureExtractor(object):
 
         seg_by_index = lod2dol(segs)
 
-        isnum = lambda x: x.isnumeric()
-        func = lambda c: c[True] if c[True] > c[False] else 0
+        isnum = lambda x: unicode(x).isnumeric()
 
         t = {k: Counter(map(isnum, seg_by_index[k]))[True] for k in seg_by_index.keys()}
-        numeric_segs = {k: 1 for k, v in t.items() if v > threshold}
+        numeric_segs = {k: v for k, v in t.items() if v > threshold}
 
-        result = ["segment_[0-9]_%d:1" % (seg + 1) for seg in numeric_segs.keys()]
+        result = [("segment_[0-9]_%d:1" % seg, count) for seg, count in numeric_segs.items()]
 
         return result
 
@@ -123,7 +122,7 @@ class FeatureExtractor(object):
 
         for seg, lengths in t.items():
             for length, count in lengths:
-                result.append("segment_len_%d:%d" % (seg + 1, length))
+                result.append(("segment_len_%d:%d" % (seg, length), count))
 
         return result
 
@@ -139,7 +138,7 @@ class FeatureExtractor(object):
 
         for seg, names in t.items():
             for name, count in names:
-                result.append("segment_name_%d:%s" % (seg + 1, name))
+                result.append(("segment_name_%d:%s" % (seg, name), count))
 
         return result
 
@@ -151,7 +150,7 @@ class FeatureExtractor(object):
 
         queries_cleaned = threshold_filter(queries_counter, threshold)
 
-        result = ["param:%s" % q for q, C in queries_cleaned]
+        result = [("param:%s" % q, c) for q, c in queries_cleaned]
 
         return result
 
@@ -162,7 +161,7 @@ class FeatureExtractor(object):
         param_names_counter = Counter(param_names)
         params_cleaned = threshold_filter(param_names_counter, threshold)
 
-        result = ["param_name:%s" % p for p, _ in params_cleaned]
+        result = [("param_name:%s" % p, c) for p, c in params_cleaned]
 
         return result
 
@@ -172,11 +171,10 @@ class FeatureExtractor(object):
     @staticmethod
     def extract_segments_len(urls, threshold=100):
         count_sg = lambda url: len(len_filter(url.path.split('/')))
-
         sg_counter = Counter([count_sg(url) for url in urls])
-
         sg_counts_cleaned = threshold_filter(sg_counter, threshold)
-        result = ["segments:%d" % sg for sg, _ in sg_counts_cleaned]
+
+        result = [("segments:%d" % sg, count) for sg, count in sg_counts_cleaned]
 
         return result
 
@@ -193,11 +191,11 @@ class FeatureExtractor(object):
         sample = random.sample(range(cache[file_path]["n_lines"]), size)
 
         # read sampled lines
-        sampled_lines = [unicode(linecache.getline(file_path, i + 1)) for i in sample]
+        sampled_lines = [linecache.getline(file_path, i + 1) for i in sample]
 
         return sampled_lines
 
-    def extract_features(self, urls):
+    def extract_features(self):
         lines_1 = self.get_sampled_lines(self.input_file_1_path)
         lines_2 = self.get_sampled_lines(self.input_file_2_path)
 
@@ -207,7 +205,6 @@ class FeatureExtractor(object):
 
         # Количество сегментов в пути - segments:<len>
         result += self.extract_segments_len(urls)
-        print
         result += self.extract_param_name(urls)
         result += self.extract_param(urls)
         result += self.extract_segment_name_index(urls)
@@ -217,11 +214,12 @@ class FeatureExtractor(object):
         result += self.segment_substr_num_index(urls)
         result += self.segment_ext_substr_num_index(urls)
 
-        with open(self.output_file_path, "w") as output:
-            for item in result:
-                output.write("%s\n" % item)
+        result = sorted(result, key=lambda tup: tup[1], reverse=True)
+        result_cleaned = ["%s\t%s\n" % r for r in result]
 
-        return result
+        with open(self.output_file_path, "w") as output:
+            for item in result_cleaned:
+                output.write(item)
 
 
 def extract_features(INPUT_FILE_1, INPUT_FILE_2, OUTPUT_FILE):
