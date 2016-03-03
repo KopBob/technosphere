@@ -142,8 +142,8 @@ class FeatureExtractor(object):
 
         return result
 
-    @staticmethod
     # param:<parameters=value>
+    @staticmethod
     def extract_param(urls, threshold=100):
         queries = sum([len_filter(url.query.split('&')) for url in urls], [])
         queries_counter = Counter(queries)
@@ -164,8 +164,6 @@ class FeatureExtractor(object):
         result = [("param_name:%s" % p, c) for p, c in params_cleaned]
 
         return result
-
-        # segments:<len>
 
     # segments:<len>
     @staticmethod
@@ -203,7 +201,6 @@ class FeatureExtractor(object):
 
         result = []
 
-        # Количество сегментов в пути - segments:<len>
         result += self.extract_segments_len(urls)
         result += self.extract_param_name(urls)
         result += self.extract_param(urls)
