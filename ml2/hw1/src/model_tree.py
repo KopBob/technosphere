@@ -5,30 +5,37 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error as mse
 
 
-def best_split_lin_reg(x_vect, y):
-    # cv_data = cv.train_test_split(x_vect, y, test_size=0.25, random_state=288)
-    # x_train, x_test, y_train, y_test = cv_data
+def ling_reg_score(indices, x, y):
+    if not np.any(indices):
+        return 1
+    leaf_x = x[indices][:, np.newaxis]
+    leaf_y = y[indices]
+    lg = LinearRegression(n_jobs=4).fit(leaf_x, leaf_y)
+    score = mse(leaf_y, lg.predict(leaf_x))
+    return score
 
+
+def best_split_lin_reg(x_vect, y):
     node_lg = LinearRegression(n_jobs=4).fit(x_vect[:, np.newaxis], y)
-    node_mse = mse(y, node_lg.predict(x_vect[:, np.newaxis]))
+    node_score = mse(y, node_lg.predict(x_vect[:, np.newaxis]))
+    print node_score
 
     best_score = -np.inf
     best_split_value = None
     best_true_inds = None
     best_false_inds = None
 
-    for split_value in x_vect:
+    for split_value in np.unique(x_vect):
         true_inds = x_vect > split_value
-        true_ratio = len(np.nonzero(true_inds)) / float(len(y))
-        true_lg = LinearRegression(n_jobs=4).fit(x_vect[true_inds][:, np.newaxis], y[true_inds])
-        true_score = mse(y, true_lg.predict(x_vect[:, np.newaxis]))
+        true_ratio = np.sum(true_inds) / float(len(y))
+        true_score = ling_reg_score(true_inds, x_vect, y)
 
         false_inds = np.invert(true_inds)
         false_ratio = 1 - true_ratio
-        false_lg = LinearRegression(n_jobs=4).fit(x_vect[false_inds][:, np.newaxis], y[false_inds])
-        false_score = mse(y, false_lg.predict(x_vect[:, np.newaxis]))
+        false_score = ling_reg_score(false_inds, x_vect, y)
 
-        score = node_mse - (true_ratio * true_score + false_ratio * false_score)
+        score = node_score - (true_ratio * true_score + false_ratio * false_score)
+
         if score > best_score:
             best_score = score
             best_split_value = split_value
@@ -36,6 +43,56 @@ def best_split_lin_reg(x_vect, y):
             best_false_inds = false_inds
 
     return best_false_inds, best_true_inds, best_split_value, best_score
+
+
+def best_split_lin_reg_dynamic(x, y):
+    sort_i = np.argsort(x)
+
+    n = len(y)
+
+    xm = x[sort_i] - np.mean(x)
+    ym = y[sort_i] - np.mean(y)
+
+    xy_sum_false = 0
+    x2_sum_false = 0
+    xy_sum_true = np.sum(xm * ym)
+    x2_sum_true = np.sum(np.power(xm, 2))
+
+    node_betta = xy_sum_true / x2_sum_true
+    node_score = mse(ym, node_betta * xm)
+
+    best_score = np.inf
+    split_value = None
+    split_ind = None
+    best_betta_false = None
+    best_betta_true = None
+
+    for i in range(1, n):
+        xy_sum_false += xm[i] * ym[i]
+        x2_sum_false += xm[i] ** 2
+
+        xy_sum_true -= xm[i] * ym[i]
+        x2_sum_true -= xm[i] ** 2
+
+        false_betta = xy_sum_false / x2_sum_false
+        false_ratio = (i + 1) / float(n)
+        false_score = mse(ym[:i], false_betta * xm[:i])
+
+        true_betta = xy_sum_true / x2_sum_true
+        true_ratio = (n - (i + 1)) / float(n)
+        true_score = mse(ym[i:], true_betta * xm[i:])
+
+        score = node_score - (false_ratio * false_score + true_ratio * true_score)
+        print false_score, true_score, np.argmin([false_score, true_score])
+        print score, x[sort_i][i-1]
+        if score < best_score:
+            best_score = score
+            split_value = x[sort_i][i - 1]
+            split_ind = i - 1
+            best_betta_false = false_betta
+            best_betta_true = true_betta
+
+    return sort_i[:split_ind], sort_i[split_ind:], split_value, best_score
 
 
 def best_split_mse_brute_force(x_vect, y):
@@ -108,12 +165,14 @@ def build_tree(x, y, depth=0, min_samples_leaf=100, max_depth=50):
 
     n_samples, m_features = x.shape
 
-    splits = [(best_split_mse_brute_force(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
+    splits = [(best_split_lin_reg_dynamic(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
     splits_sorted = sorted(splits, key=lambda tup: tup[0][-1])
 
     (false_inds, true_inds, split_value, score), split_feature = splits_sorted[-1]
     false_x, false_y = x[false_inds], y[false_inds]
     true_x, true_y = x[true_inds], y[true_inds]
+
+    print len(false_y), len(true_y)
 
     size_cond = len(false_y) <= min_samples_leaf or len(true_y) <= min_samples_leaf
 
