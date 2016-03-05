@@ -1,5 +1,69 @@
 import numpy as np
 
+from sklearn import cross_validation as cv
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error as mse
+
+
+def best_split_lin_reg(x_vect, y):
+    # cv_data = cv.train_test_split(x_vect, y, test_size=0.25, random_state=288)
+    # x_train, x_test, y_train, y_test = cv_data
+
+    node_lg = LinearRegression(n_jobs=4).fit(x_vect[:, np.newaxis], y)
+    node_mse = mse(y, node_lg.predict(x_vect[:, np.newaxis]))
+
+    best_score = -np.inf
+    best_split_value = None
+    best_true_inds = None
+    best_false_inds = None
+
+    for split_value in x_vect:
+        true_inds = x_vect > split_value
+        true_ratio = len(np.nonzero(true_inds)) / float(len(y))
+        true_lg = LinearRegression(n_jobs=4).fit(x_vect[true_inds][:, np.newaxis], y[true_inds])
+        true_score = mse(y, true_lg.predict(x_vect[:, np.newaxis]))
+
+        false_inds = np.invert(true_inds)
+        false_ratio = 1 - true_ratio
+        false_lg = LinearRegression(n_jobs=4).fit(x_vect[false_inds][:, np.newaxis], y[false_inds])
+        false_score = mse(y, false_lg.predict(x_vect[:, np.newaxis]))
+
+        score = node_mse - (true_ratio * true_score + false_ratio * false_score)
+        if score > best_score:
+            best_score = score
+            best_split_value = split_value
+            best_true_inds = true_inds
+            best_false_inds = false_inds
+
+    return best_false_inds, best_true_inds, best_split_value, best_score
+
+
+def best_split_mse_brute_force(x_vect, y):
+    node_std = np.std(y) ** 2
+
+    best_score = -np.inf
+    best_split_value = None
+    best_true_inds = None
+    best_false_inds = None
+
+    for split_value in x_vect:
+        true_inds = x_vect >= split_value
+        true_ratio = len(np.nonzero(true_inds)) / float(len(y))
+        true_score = np.std(y[true_inds]) ** 2
+
+        false_inds = np.invert(true_inds)
+        false_ratio = 1 - true_ratio
+        false_score = np.std(y[false_inds]) ** 2
+
+        score = node_std - (true_ratio * true_score + false_ratio * false_score)
+        if score > best_score:
+            best_score = score
+            best_split_value = split_value
+            best_true_inds = true_inds
+            best_false_inds = false_inds
+
+    return best_false_inds, best_true_inds, best_split_value, best_score
+
 
 def best_split_mse(x_vect, y):
     node_std = np.std(y) ** 2
@@ -44,15 +108,14 @@ def build_tree(x, y, depth=0, min_samples_leaf=100, max_depth=50):
 
     n_samples, m_features = x.shape
 
-    splits = [(best_split_mse(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
+    splits = [(best_split_mse_brute_force(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
     splits_sorted = sorted(splits, key=lambda tup: tup[0][-1])
 
     (false_inds, true_inds, split_value, score), split_feature = splits_sorted[-1]
-
     false_x, false_y = x[false_inds], y[false_inds]
     true_x, true_y = x[true_inds], y[true_inds]
 
-    size_cond = len(false_y) < min_samples_leaf or len(true_y) < min_samples_leaf
+    size_cond = len(false_y) <= min_samples_leaf or len(true_y) <= min_samples_leaf
 
     if size_cond:
         return Node(x, y)
