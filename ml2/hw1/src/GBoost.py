@@ -39,10 +39,10 @@ class GBoost:
             cart = CART(min_samples_leaf=self.min_samples_leaf, max_depth=self.max_depth)
             self.ensembles.append(cart.fit(X, gN))
 
-    def predict_proba(self, X):
-        pred = np.sum(np.array([b.predict(X) for b in self.ensembles]) * self.shrinkage_value, axis=0)
+    def predict_proba(self, X, n_estimators=None):
+        pred = np.sum(np.array([b.predict(X) for b in self.ensembles[:n_estimators]]) * self.shrinkage_value, axis=0)
         return np.vstack((neg(pred), pos(pred)))
 
-    def predict(self, X):
-        proba = self.predict_proba(X)
+    def predict(self, X, n_estimators=None):
+        proba = self.predict_proba(X, n_estimators)
         return self.classes[np.argmax(proba, axis=0)]

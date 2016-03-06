@@ -2,6 +2,9 @@ import numpy as np
 
 from sklearn.metrics import mean_squared_error as mse
 
+from joblib import Parallel, delayed
+import multiprocessing
+
 
 def best_split_mse(x_vect, y):
     node_std = np.std(y) ** 2
@@ -77,6 +80,7 @@ class CART(object):
         n_samples, m_features = x.shape
 
         splits = [(best_split_mse(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
+
         splits_sorted = sorted(splits, key=lambda tup: tup[0][-1])
 
         (false_inds, true_inds, split_value, score), split_feature = splits_sorted[-1]
