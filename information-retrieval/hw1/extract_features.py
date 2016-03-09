@@ -31,10 +31,10 @@ cache = defaultdict(dict)
 
 
 class FeatureExtractor(object):
-    def __init__(self, input_file_1_path, input_file_2_path, output_file_path):
-        self.input_file_1_path = input_file_1_path
-        self.input_file_2_path = input_file_2_path
-        self.output_file_path = output_file_path
+    # def __init__(self, input_file_1_path, input_file_2_path, output_file_path):
+    #     self.input_file_1_path = input_file_1_path
+    #     self.input_file_2_path = input_file_2_path
+    #     self.output_file_path = output_file_path
 
     # segment_ext_substr[0-9]_<index>:<extension value>
     @staticmethod
@@ -176,7 +176,26 @@ class FeatureExtractor(object):
 
         return result
 
-    def get_sampled_lines(self, file_path, size=1000):
+    @staticmethod
+    def extract_features(links, threshold=100):
+        result = []
+
+        result += FeatureExtractor.extract_segments_len(links, threshold)
+        result += FeatureExtractor.extract_param_name(links, threshold)
+        result += FeatureExtractor.extract_param(links, threshold)
+        result += FeatureExtractor.extract_segment_name_index(links, threshold)
+        result += FeatureExtractor.extract_segment_len_index(links, threshold)
+        result += FeatureExtractor.extract_segment_is_number(links, threshold)
+        result += FeatureExtractor.segment_ext_index(links, threshold)
+        result += FeatureExtractor.segment_substr_num_index(links, threshold)
+        result += FeatureExtractor.segment_ext_substr_num_index(links, threshold)
+
+        result = sorted(result, key=lambda tup: tup[1], reverse=True)
+
+        return result
+
+
+def get_sampled_lines(file_path, size=1000):
         # count lines in file
         if "n_lines" not in cache[file_path].keys():
             with open(file_path, 'r') as fp:
@@ -193,32 +212,17 @@ class FeatureExtractor(object):
 
         return sampled_lines
 
-    def extract_features(self):
-        lines_1 = self.get_sampled_lines(self.input_file_1_path)
-        lines_2 = self.get_sampled_lines(self.input_file_2_path)
-
-        urls = [urlparse.urlparse(line.rstrip()) for line in lines_1 + lines_2]
-
-        result = []
-
-        result += self.extract_segments_len(urls)
-        result += self.extract_param_name(urls)
-        result += self.extract_param(urls)
-        result += self.extract_segment_name_index(urls)
-        result += self.extract_segment_len_index(urls)
-        result += self.extract_segment_is_number(urls)
-        result += self.segment_ext_index(urls)
-        result += self.segment_substr_num_index(urls)
-        result += self.segment_ext_substr_num_index(urls)
-
-        result = sorted(result, key=lambda tup: tup[1], reverse=True)
-        result_cleaned = ["%s\t%s\n" % r for r in result]
-
-        with open(self.output_file_path, "w") as output:
-            for item in result_cleaned:
-                output.write(item)
-
 
 def extract_features(INPUT_FILE_1, INPUT_FILE_2, OUTPUT_FILE):
-    extractor = FeatureExtractor(INPUT_FILE_1, INPUT_FILE_2, OUTPUT_FILE)
-    extractor.extract_features()
+    lines_1 = get_sampled_lines(INPUT_FILE_1)
+    lines_2 = get_sampled_lines(INPUT_FILE_2)
+    links = [urlparse.urlparse(line.rstrip()) for line in lines_1 + lines_2]
+
+    extractor = FeatureExtractor()
+    result = extractor.extract_features(links)
+
+    result_cleaned = ["%s\t%s\n" % r for r in result]
+
+    with open(OUTPUT_FILE, "w") as output:
+        for item in result_cleaned:
+            output.write(item)
