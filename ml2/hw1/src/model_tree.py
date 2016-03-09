@@ -51,8 +51,6 @@ def best_split_lin_reg_dynamic(x, y):
 
     xm = x[sort_i] - np.mean(x)
     ym = y[sort_i] - np.mean(y)
-    print x[sort_i]
-    print y[sort_i]
 
     xy_sum_false = 0
     x2_sum_false = 0
@@ -62,13 +60,10 @@ def best_split_lin_reg_dynamic(x, y):
     node_betta = xy_sum_true / x2_sum_true
     node_betta = 1 if np.isnan(node_betta) else node_betta
     node_score = mse(ym + np.mean(y), node_betta * xm)
-    print node_score
 
-    best_score = np.inf# node_score
+    best_score = np.inf
     split_value = xm[0] + np.mean(x)
     split_ind = x[sort_i[0]]
-    # best_betta_false = None
-    # best_betta_true = None
 
     for i in range(1, n):
         xy_sum_false += xm[i] * ym[i]
@@ -83,35 +78,20 @@ def best_split_lin_reg_dynamic(x, y):
         # false_betta = 0 if np.isnan(false_betta) else false_betta
         false_ratio = i / float(n)
         false_score = mse(ym[:i] + np.mean(y), false_betta * xm[:i]) if len(ym[:i]) else 0
-        print "  ", false_betta, false_score, ym[:i] + np.mean(y)
-        # print "     ", false_betta * xm[:i]
 
         true_betta = xy_sum_true / x2_sum_true
         # true_betta = 0 if np.isnan(true_betta) else true_betta
         true_ratio = (n - i) / float(n)
         true_score = mse(ym[i:] + np.mean(y), true_betta * xm[i:])
-        print "  ", true_betta, true_score, ym[i:] + np.mean(y)
-        # print "     ", true_betta * xm[i:]
 
         score = node_score - (false_ratio * false_score + true_ratio * true_score)
-        # print "  ", score
-        # print false_score, false_score
-        # print score, x[sort_i][i-1], false_score, true_score
         scores = np.array([false_score, true_score])
         score = scores[np.argmin(scores)]
-        print "   ", score
-        #         print false_score, true_score, np.argmin([false_score, true_score])
-        #         print score, x[sort_i][i-1]
-        # print y[sort_i][:split_ind], y[sort_i][split_ind:], split_value,  best_score
 
         if score < best_score:
             best_score = score
             split_value = x[sort_i[i]]
             split_ind = i
-            # best_betta_false = false_betta
-            # best_betta_true = true_betta
-
-    print y[sort_i[:split_ind]], y[sort_i[split_ind:]], split_value, best_score
 
     return sort_i[:split_ind], sort_i[split_ind:], split_value, best_score
 

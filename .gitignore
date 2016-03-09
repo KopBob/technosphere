@@ -1,5 +1,6 @@
 # Mac os
 .DS_Store
 .idea
+.ipynb_checkpoints
 
 *.pyc
