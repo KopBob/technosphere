@@ -1,6 +1,6 @@
 from joblib import Parallel, delayed
 
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, f1_score
 from sklearn.ensemble import GradientBoostingClassifier
 
 from matplotlib import pyplot as plt
@@ -19,7 +19,7 @@ def mse_gboost(x_train, x_test, y_train, y_test, n_estimators):
                  max_depth=MAX_DEPTH)
     clf.fit(x_train, y_train)
 
-    return [mean_squared_error(y_test, clf.predict(x_test, n)) for n in estimators_range]
+    return [f1_score(y_test, clf.predict(x_test, n)) for n in estimators_range]
 
 
 def mse_sklearn(x_train, x_test, y_train, y_test, n_estimators):
@@ -28,7 +28,7 @@ def mse_sklearn(x_train, x_test, y_train, y_test, n_estimators):
                                      max_depth=MAX_DEPTH)
     clf.fit(x_train, y_train)
     pred = clf.predict(x_test)
-    return mean_squared_error(y_test, pred)
+    return f1_score(y_test, pred)
 
 
 def draw_graph_hw1(x_train, x_test, y_train, y_test, up_to_n_estimators=10):
