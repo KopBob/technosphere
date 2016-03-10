@@ -1,33 +1,36 @@
 import numpy as np
 
 
-def best_split_mse(x_vect, y):
-    node_std = np.std(y) ** 2
+def best_split_mse(x_vect, y, node_std):
+    # node_std = np.sum(y**2) - (np.sum(y)**2) / len(y) # np.std(y) ** 2
 
     sorted_ind = np.argsort(x_vect)
     s_x = x_vect[sorted_ind]
     s_y = y[sorted_ind]
 
-    left_sum = np.array([0] + list(np.cumsum(s_y)[:-1]))
-    right_sum = np.abs(left_sum - left_sum[-1])
+    left_tmp_sum = list(np.cumsum(s_y))
+    left_sum = np.array([0] + left_tmp_sum[:-1])
+    right_sum = np.abs(left_sum - left_tmp_sum[-1])
+
+    left_tmp_sq_sum = list(np.cumsum(s_y * s_y))
+    left_sq_sum = np.array([0] + left_tmp_sq_sum[:-1])
+    right_sq_sum = np.abs(left_sq_sum - left_tmp_sq_sum[-1])
 
     left_len = np.arange(0, len(y), dtype=np.float64)
     left_ratio = left_len / float(len(y))
     right_len = np.arange(len(y), 0, -1, dtype=np.float64)
     right_ratio = right_len / float(len(y))
 
-    left_crit = np.nan_to_num(left_ratio * ((left_sum - (left_sum ** 2) / left_len) / left_len))
-    right_crit = np.nan_to_num(right_ratio * ((right_sum - (right_sum ** 2) / right_len) / right_len))
+    left_score = (left_sq_sum - (left_sum ** 2) / left_len)
+    right_score = (right_sq_sum - (right_sum ** 2) / right_len)
+
+    left_crit = np.nan_to_num(left_ratio * left_score)
+    right_crit = np.nan_to_num(right_ratio * right_score)
 
     score = node_std - (left_crit + right_crit)
 
     _, unique_ind, unique_count = np.unique(s_x, return_index=True, return_counts=True)
     indices = np.repeat(unique_ind, unique_count)
-
-    # indices = range(len(s_x))
-    # for i in range(1, len(s_x)):
-    #     if s_x[i - 1] == s_x[i]:
-    #         indices[i] = indices[i - 1]
 
     sep_ind = np.argmax(score[indices])
 
@@ -41,7 +44,7 @@ def best_split_mse(x_vect, y):
 
 def tree_predict_one(x, tree):
     if tree.split_feature is None:
-        return np.mean(tree.y)*tree.gamma
+        return np.mean(tree.y) * tree.gamma
 
     pred = x[tree.split_feature] >= tree.split_value
     branch = tree.tb if pred else tree.fb
@@ -66,7 +69,7 @@ class Node(object):
         self.gamma = 1
 
         if (split_value is None) and shrinkage:
-            self.gamma = (np.sum(self.x)/(np.sum(np.abs(self.x) * (2 - np.abs(self.x)))))
+            self.gamma = (np.sum(self.x) / (np.sum(np.abs(self.x) * (2 - np.abs(self.x)))))
             # print self.gamma
 
 
@@ -85,7 +88,8 @@ class CART(object):
 
         n_samples, m_features = x.shape
 
-        splits = [(best_split_mse(x[:, f_ind], y), f_ind) for f_ind in range(m_features)]
+        node_std = np.sum(y * y) - (np.sum(y) ** 2 / len(y))
+        splits = [(best_split_mse(x[:, f_ind], y, node_std), f_ind) for f_ind in range(m_features)]
         splits_sorted = sorted(splits, key=lambda tup: tup[0][-1])
 
         (false_inds, true_inds, split_value, score), split_feature = splits_sorted[-1]
