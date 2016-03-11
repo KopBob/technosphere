@@ -1,9 +1,11 @@
-from joblib import Parallel, delayed
-
-from sklearn.metrics import mean_squared_error, f1_score
+import time
 from sklearn.ensemble import GradientBoostingClassifier
 
 from matplotlib import pyplot as plt
+from joblib import Parallel, delayed
+
+from sklearn.metrics import f1_score
+from sklearn.ensemble import AdaBoostClassifier
 
 from GBoost import GBoost
 
@@ -22,6 +24,12 @@ def mse_gboost(x_train, x_test, y_train, y_test, n_estimators):
     return [f1_score(y_test, clf.predict(x_test, n)) for n in estimators_range]
 
 
+def gboost2scores(clf, x_test, y_test, n_estimators):
+    estimators_range = range(1, n_estimators + 1)
+
+    return [f1_score(y_test, clf.predict(x_test, n)) for n in estimators_range]
+
+
 def mse_sklearn(x_train, x_test, y_train, y_test, n_estimators):
     clf = GradientBoostingClassifier(n_estimators=n_estimators,
                                      min_samples_leaf=MIN_SAMPLES_LEAF,
@@ -35,10 +43,33 @@ def draw_graph_hw1(x_train, x_test, y_train, y_test, up_to_n_estimators=10):
     estimators_range = range(1, up_to_n_estimators + 1)
     gboost_scores = mse_gboost(x_train, x_test, y_train, y_test, up_to_n_estimators)
 
-    sklearn_scores = Parallel(n_jobs=8)(delayed(mse_sklearn)(x_train, x_test, y_train, y_test, n) for n in estimators_range)
+    sklearn_scores = Parallel(n_jobs=8)(
+            delayed(mse_sklearn)(x_train, x_test, y_train, y_test, n) for n in estimators_range)
     # sklearn_scores = [mse_sklearn(x_train, x_test, y_train, y_test, n) for n in estimators_range]
 
     plt.plot(estimators_range, gboost_scores, color="red")
     plt.plot(estimators_range, sklearn_scores)
 
     return gboost_scores, sklearn_scores
+
+
+ada_best_params = {'n_estimators': 250, 'learning_rate': 1.0, 'algorithm': 'SAMME.R'}
+
+
+def predict_on_fsubset(features, x_train, x_test, y_train, y_test):
+    start = time.time()
+    clf = AdaBoostClassifier(**ada_best_params)
+    clf.fit(x_train[:, features], y_train)
+    y_pred = clf.predict(x_test[:, features])
+    score = f1_score(y_test, y_pred)
+
+    end = time.time()
+    return clf, score, end - start
+
+
+def fset2scores(fset, x_train, x_test, y_train, y_test):
+    fpacks = [fset[:i] for i in range(1, len(fset) + 1)]
+    res = Parallel(n_jobs=8)(delayed(predict_on_fsubset)(pack, x_train, x_test, y_train, y_test) for pack in fpacks)
+
+    clfs, scores, times = zip(*res)
+    return clfs, scores, times
