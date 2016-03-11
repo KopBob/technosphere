@@ -8,14 +8,14 @@ from joblib import Parallel, delayed
 from sklearn.metrics import f1_score
 from sklearn.ensemble import AdaBoostClassifier
 
-from constants import ADABOOST_PARAMS
+from constants import ADABOOST_PARAMS, NUM_CORES
 
 FOLDS = 4
 
 
 def fit_pred_abc(X, y, feature_set):
     score = 0
-    abc = AdaBoostClassifier(*ADABOOST_PARAMS)
+    abc = AdaBoostClassifier(**ADABOOST_PARAMS)
 
     for train_index, test_index in KFold(len(y), n_folds=FOLDS):
         X_train, X_test = X[train_index], X[test_index]
@@ -44,7 +44,9 @@ def wrapper(expected_features, x_train, y_train, x_test, y_test):
 
         unbound_fsets = [list(target_fset | set([f])) for f in rest_fset]
 
-        clfs_scores = Parallel(n_jobs=8)(delayed(fit_pred_abc)(x_train, y_train, fset) for fset in unbound_fsets)
+        clfs_scores = Parallel(n_jobs=NUM_CORES)(
+                delayed(fit_pred_abc)(x_train, y_train, fset) for fset in unbound_fsets)
+        # clfs_scores = [fit_pred_abc(x_train, y_train, fset) for fset in unbound_fsets]
 
         best_f_ind = np.argmax(clfs_scores)
 
@@ -56,5 +58,4 @@ def wrapper(expected_features, x_train, y_train, x_test, y_test):
 
     return target_flist, scores, times_list
 
-
-wrapper_features, wrapper_scores, wrapper_times = wrapper(2, x_train, y_train, x_test, y_test)
+# wrapper_features, wrapper_scores, wrapper_times = wrapper(2, x_train, y_train, x_test, y_test)

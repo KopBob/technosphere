@@ -4,19 +4,20 @@ from sklearn import cross_validation as cv
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error as mse
 
+from constants import NUM_CORES
 
 def ling_reg_score(indices, x, y):
     if not np.any(indices):
         return 1
     leaf_x = x[indices][:, np.newaxis]
     leaf_y = y[indices]
-    lg = LinearRegression(n_jobs=4).fit(leaf_x, leaf_y)
+    lg = LinearRegression(n_jobs=NUM_CORES).fit(leaf_x, leaf_y)
     score = mse(leaf_y, lg.predict(leaf_x))
     return score
 
 
 def best_split_lin_reg(x_vect, y):
-    node_lg = LinearRegression(n_jobs=4).fit(x_vect[:, np.newaxis], y)
+    node_lg = LinearRegression(n_jobs=NUM_CORES).fit(x_vect[:, np.newaxis], y)
     node_score = mse(y, node_lg.predict(x_vect[:, np.newaxis]))
 
     best_score = -np.inf

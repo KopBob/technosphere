@@ -1,3 +1,4 @@
+import os
 import time
 from sklearn.ensemble import GradientBoostingClassifier
 
@@ -8,6 +9,9 @@ from sklearn.metrics import f1_score
 from sklearn.ensemble import AdaBoostClassifier
 
 from GBoost import GBoost
+
+
+from constants import NUM_CORES
 
 MIN_SAMPLES_LEAF = 1
 MAX_DEPTH = 4
@@ -69,7 +73,21 @@ def predict_on_fsubset(features, x_train, x_test, y_train, y_test):
 
 def fset2scores(fset, x_train, x_test, y_train, y_test):
     fpacks = [fset[:i] for i in range(1, len(fset) + 1)]
-    res = Parallel(n_jobs=8)(delayed(predict_on_fsubset)(pack, x_train, x_test, y_train, y_test) for pack in fpacks)
+    res = Parallel(n_jobs=NUM_CORES)(delayed(predict_on_fsubset)(pack, x_train, x_test, y_train, y_test) for pack in fpacks)
 
     clfs, scores, times = zip(*res)
     return clfs, scores, times
+
+
+def plot_graph(data, title, xlabel, ylabel, out_path=None):
+    figure = plt.figure(figsize=(10, 10))
+    plt.plot(range(1, len(data) + 1), data)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    if out_path:
+        timestamp = time.strftime("%m-%d_%H-%M-%S")
+        splited = os.path.splitext(out_path)
+        new_path = "".join(list(splited)[:-1] + ["_", timestamp] + [splited[-1]])
+        figure.savefig(new_path)
