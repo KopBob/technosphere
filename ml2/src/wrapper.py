@@ -55,6 +55,7 @@ def wrapper(expected_features, x_train, y_train, x_test, y_test):
         end = time.time()
         times_list.append(end - start)
         print i, target_flist
+        print i, scores
         print i, times_list
 
     return target_flist, scores, times_list
