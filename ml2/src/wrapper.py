@@ -10,7 +10,7 @@ from sklearn.ensemble import AdaBoostClassifier
 
 from constants import ADABOOST_PARAMS, NUM_CORES
 
-FOLDS = 4
+FOLDS = 3
 
 
 def fit_pred_abc(X, y, feature_set):
@@ -38,7 +38,6 @@ def wrapper(expected_features, x_train, y_train, x_test, y_test):
 
     for i in range(expected_features):
         start = time.time()
-        print i,
         target_fset = set(target_flist)
         rest_fset = list(initial_fset - target_fset)
 
@@ -55,6 +54,8 @@ def wrapper(expected_features, x_train, y_train, x_test, y_test):
         scores.append(clfs_scores[best_f_ind])
         end = time.time()
         times_list.append(end - start)
+        print i, target_flist
+        print i, times_list
 
     return target_flist, scores, times_list
 
