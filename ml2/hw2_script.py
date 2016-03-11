@@ -13,7 +13,7 @@ from src.constants import NUM_CORES
 
 def run_wrapper(x_train, x_test, y_train, y_test):
     print "Running wrapper method..."
-    wrapper_features, wrapper_scores, wrapper_times = wrapper(2, # x_train.shape[1] - 1,
+    wrapper_features, wrapper_scores, wrapper_times = wrapper(x_train.shape[1] - 1,
                                                               x_train, y_train, x_test, y_test)
 
     plot_graph(wrapper_scores, "Wrapper Method Scores", "n_features", "f1-score",
