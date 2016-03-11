@@ -8,6 +8,7 @@ from sklearn import cross_validation as cv
 from src.benchmark import plot_graph
 
 from src.wrapper import wrapper
+from src.constants import NUM_CORES
 
 
 def run_wrapper(x_train, x_test, y_train, y_test):
@@ -24,6 +25,7 @@ def run_wrapper(x_train, x_test, y_train, y_test):
 
 
 if __name__ == '__main__':
+    print "Num of cores - ", NUM_CORES
     df = pd.read_csv("./spam.train.txt", delim_whitespace=True, header=None)
     x_data = df.ix[:, 1:].as_matrix();
     y_data = df.ix[:, 0].as_matrix()
