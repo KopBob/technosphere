@@ -10,7 +10,7 @@ from sklearn.ensemble import AdaBoostClassifier
 
 from constants import ADABOOST_PARAMS, NUM_CORES
 
-FOLDS = 4
+FOLDS = 3
 
 
 def fit_pred_abc(X, y, feature_set):
