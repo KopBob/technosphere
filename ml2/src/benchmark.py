@@ -62,7 +62,8 @@ ada_best_params = {'n_estimators': 250, 'learning_rate': 1.0, 'algorithm': 'SAMM
 
 def predict_on_fsubset(features, x_train, x_test, y_train, y_test):
     start = time.time()
-    clf = AdaBoostClassifier(**ada_best_params)
+    # clf = AdaBoostClassifier(**ada_best_params)
+    clf = GradientBoostingClassifier(n_estimators=250)
     clf.fit(x_train[:, features], y_train)
     y_pred = clf.predict(x_test[:, features])
     score = f1_score(y_test, y_pred)

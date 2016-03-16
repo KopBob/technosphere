@@ -3,17 +3,21 @@ import numpy as np
 from CART import CART, tree_predict_one
 
 
-def logic_loss(y_true, y_pred):
+def logic_loss2(y_true, y_pred):
     return 2 * y_true / (1 + np.exp(2 * y_true * y_pred))
 
 
-pos = lambda y: 1 / (1 + np.exp(-2 * y))
-neg = lambda y: 1 / (1 + np.exp(2 * y))
+def logic_loss(y_true, y_pred):
+    return y_true - 1 + 1 / (1 + np.exp(y_pred))
+
+
+pos = lambda y: 1 / (1 + np.exp(-2*y))
+neg = lambda y: 1 / (1 + np.exp(2*y))
 
 
 class GBoost:
     def __init__(self, n_estimators, min_samples_leaf=1,
-                 max_depth=4, learning_rate=1, loss=logic_loss):
+                 max_depth=4, learning_rate=1, loss=logic_loss2):
         self.n_estimators = n_estimators
         self.min_samples_leaf = min_samples_leaf
         self.shrinkage_value = learning_rate
