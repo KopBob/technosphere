@@ -5,11 +5,11 @@ from sklearn.ensemble import GradientBoostingClassifier
 from matplotlib import pyplot as plt
 from joblib import Parallel, delayed
 
+from sklearn.cross_validation import KFold
 from sklearn.metrics import f1_score
 from sklearn.ensemble import AdaBoostClassifier
 
 from GBoost import GBoost
-
 
 from constants import NUM_CORES
 
@@ -59,14 +59,45 @@ def draw_graph_hw1(x_train, x_test, y_train, y_test, up_to_n_estimators=10):
 
 ada_best_params = {'n_estimators': 250, 'learning_rate': 1.0, 'algorithm': 'SAMME.R'}
 
+FOLDS = 4
+
+
+def fit_pred_abc(X, y, feature_set):
+    start = time.time()
+    score = 0
+    # abc = AdaBoostClassifier(**ADABOOST_PARAMS)
+    clf = GradientBoostingClassifier(n_estimators=120, learning_rate=0.6)
+
+    for train_index, test_index in KFold(len(y), n_folds=FOLDS):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        clf.fit(X_train[:, feature_set], y_train)
+
+        y_pred = clf.predict(X_test[:, feature_set])
+        score += f1_score(y_test, y_pred) / float(FOLDS)
+    end = time.time()
+    return clf, score, end - start
+
 
 def predict_on_fsubset(features, x_train, x_test, y_train, y_test):
     start = time.time()
     # clf = AdaBoostClassifier(**ada_best_params)
-    clf = GradientBoostingClassifier(n_estimators=250)
-    clf.fit(x_train[:, features], y_train)
-    y_pred = clf.predict(x_test[:, features])
-    score = f1_score(y_test, y_pred)
+    clf = GradientBoostingClassifier(n_estimators=120, learning_rate=0.6)
+    # clf.fit(x_train[:, features], y_train)
+
+    score = 0
+    for train_index, test_index in KFold(len(y_train), n_folds=FOLDS):
+        X_train, X_test = x_train[train_index], x_train[test_index]
+        y_train, y_test = y_train[train_index], y_train[test_index]
+
+        clf.fit(X_train[:, features], y_train)
+
+        y_pred = clf.predict(X_test[:, features])
+        score += f1_score(y_test, y_pred) / float(FOLDS)
+
+    # y_pred = clf.predict(x_test[:, features])
+    # score = f1_score(y_test, y_pred)
 
     end = time.time()
     return clf, score, end - start
@@ -74,7 +105,8 @@ def predict_on_fsubset(features, x_train, x_test, y_train, y_test):
 
 def fset2scores(fset, x_train, x_test, y_train, y_test):
     fpacks = [fset[:i] for i in range(1, len(fset) + 1)]
-    res = Parallel(n_jobs=NUM_CORES)(delayed(predict_on_fsubset)(pack, x_train, x_test, y_train, y_test) for pack in fpacks)
+    # res = Parallel(n_jobs=NUM_CORES)(delayed(predict_on_fsubset)(pack, x_train, x_test, y_train, y_test) for pack in fpacks)
+    res = Parallel(n_jobs=NUM_CORES)(delayed(fit_pred_abc)(x_train, y_train, pack) for pack in fpacks)
 
     clfs, scores, times = zip(*res)
     return clfs, scores, times

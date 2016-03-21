@@ -33,5 +33,4 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = cv.train_test_split(x_data, y_data,
                                                            test_size=0.25, random_state=288)
 
-
     run_wrapper(x_train, x_test, y_train, y_test)
