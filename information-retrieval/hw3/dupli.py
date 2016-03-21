@@ -1,48 +1,23 @@
-import struct
+from __future__ import print_function
 import sys
-import gzip
-import cStringIO
 import unicodedata
 import itertools
 from collections import OrderedDict, defaultdict
 
 import mmh3
-import html2text
 
-import src.document_pb2 as document_pb2
+from src.broder_shingles import MinshinglesCounter
+from src.docreader import DocumentStreamReader
 
+import psutil
 
-def parse_html(content):
-    h2t = html2text.HTML2Text()
-    h2t.ignore_links = True
-    h2t.ignore_images = True
-    h2t.images_to_alt = False
-
-    return h2t.handle(content)
-
-
-class DocumentStreamReader:
-    def __init__(self, stream):
-        self.stream = stream
-
-    def __iter__(self):
-        while True:
-            sb = self.stream.read(4)
-            if sb == '':
-                return
-
-            size = struct.unpack('i', sb)[0]
-            msg = self.stream.read(size)
-            doc = document_pb2.document()
-            doc.ParseFromString(msg)
-            yield doc
-
+curr_mem = lambda: psutil.virtual_memory().used / 1024.0 / 1024.0
 
 tbl = {i: u' ' for i in xrange(sys.maxunicode)
        if unicodedata.category(unichr(i)).startswith('P') or \
        unicodedata.category(unichr(i)).startswith('N')}
 
-list2comb = lambda l: list(itertools.combinations(l, 2))
+list2comb = lambda l: itertools.combinations(l, 2)
 
 
 def text2tokens(text):
@@ -69,54 +44,81 @@ def shingles2sketch(shingles, m_baskets=20):
     return sorted(baskets.values())
 
 
-def doc2counter(documents, ids):
+@profile
+def doc2counter(docs_sketches, docs_ids):
     grouped_docs = defaultdict(list)
-    for doc_id, document in documents.iteritems():
-        for shingle in document['sketch']:
+
+    # print("Info: ", "stage1..", curr_mem(), file=sys.stderr)
+    for doc_id in docs_sketches.keys():
+        for shingle in docs_sketches[doc_id]:
             grouped_docs[shingle].append(doc_id)
-    del documents
+
+        del docs_sketches[doc_id]
+
+    # for doc_id, doc_sketch in docs_sketches.iteritems():
+    #     for shingle in doc_sketch:
+    #         grouped_docs[shingle].append(doc_id)
 
     grouped_docs_cleaned = filter(lambda l: len(l) > 1, grouped_docs.itervalues())
+
     grouped_docs_cleaned = map(lambda x: sorted(x), grouped_docs_cleaned)
     paired_docs = map(list2comb, grouped_docs_cleaned)
 
     paired_docs_reduced = itertools.chain.from_iterable(paired_docs)
 
+    # print("Info: ", "stage2..", curr_mem(), type(paired_docs_reduced), file=sys.stderr)
+
     counter = defaultdict(int)
     for k in paired_docs_reduced:
         counter[k] += 1
 
-    counter_filtered = [(ids[id1], ids[id2], (float(c) / (float(c) + 2 * (20.0 - c)))) for ((id1, id2), c) in
-                        counter.iteritems() if
-                        c > 14]
+    # print("Info: ", "stage3..", curr_mem(), file=sys.stderr)
+    ratio = lambda c: 1.0 * c / (1.0 * c + 2 * (20.0 - c))
+
+    counter_filtered = [(docs_ids[id1], docs_ids[id2], ratio(c)) for ((id1, id2), c) in counter.iteritems() if
+                        c > 17]
     counter_cleaned = sorted(counter_filtered, key=lambda x: x[2], reverse=True)
 
+    # print("Info: ", "stage4..", curr_mem(), file=sys.stderr)
     return counter_cleaned
 
 
+@profile
 def all_in_one(dataset):
-    documents_ids = OrderedDict()
-    documents = defaultdict(dict)
+    docs_ids = OrderedDict()
+    docs_sketches = defaultdict(dict)
 
+    minhash_counter = MinshinglesCounter()
+
+    # print("Info: ", "parsing files..", curr_mem(), file=sys.stderr)
     for part in dataset[:]:
-        with gzip.open(part, 'rb') as f:
-            buffer = cStringIO.StringIO(f.read())
-            reader = DocumentStreamReader(buffer)
+        reader = DocumentStreamReader(part)
+        # with gzip.open(part, 'rb') as f:
+        #     buffer = cStringIO.StringIO(f.read())
+        #     reader = DocumentStreamReader(buffer)
 
         for i, doc in enumerate(reader):
-            doc_id = mmh3.hash(doc.url)
+            sketch = minhash_counter.count(doc.text)
 
-            documents_ids[doc_id] = doc.url
+            if sketch:
+                doc_id = mmh3.hash(doc.url)
 
-            documents[mmh3.hash(doc.url)] = {
-                'url': doc.url,
-                'sketch': shingles2sketch(tokens2shingles(text2tokens(doc.text.strip()))),
+                docs_ids[doc_id] = doc.url
+                # docs_sketches[mmh3.hash(doc.url)] = sketch
+
+                docs_sketches[mmh3.hash(doc.url)] = shingles2sketch(tokens2shingles(text2tokens(doc.text.strip())))
+                # {
+                #   'url': doc.url,
+                #  'sketch': shingles2sketch(tokens2shingles(text2tokens(doc.text.strip()))),
                 #                 'sketch': shingles2sketch(tokens2shingles(text2tokens(parse_html(doc.body).strip()))),
                 #                 'tokens': text2tokens(doc.text.strip()),
                 #                 'tokens': text2tokens(parse_html(doc.body).strip()),
-            }
+                # }
 
-    result = doc2counter(documents, documents_ids)
+    # print("Info: ", "counting..", curr_mem(), file=sys.stderr)
+    result = doc2counter(docs_sketches, docs_ids)
 
-    for row in result:
-        print "%s %s %f" % row
+    # print("Info: ", "finish..", curr_mem(), file=sys.stderr)
+    #
+    # for row in result:
+    #     print("%s %s %f" % row)

@@ -22,13 +22,12 @@ class MinshinglesCounter:
         words = MinshinglesCounter._extract_words(text)
         shs = self._count_shingles(words)
         mshs = self._select_minshingles(shs)
-        print shs
 
         if len(mshs) == self.n:
             return mshs
 
         if len(shs) >= self.n:
-            return sorted(shs)[0:self.n]
+            return list(set(sorted(shs)))[0:self.n]
 
         return None
 
