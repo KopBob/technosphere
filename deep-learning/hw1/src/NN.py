@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from sklearn.preprocessing import normalize
+
 
 # d - number of features (size of input layer)
 # c - number of classes  (size of output layer)
@@ -79,32 +81,32 @@ import numpy as np
 class dummy_activation:
     @staticmethod
     def function(a):
-        return a
+        raise NotImplementedError
 
     @staticmethod
     def derivative(a):
-        return a
+        raise NotImplementedError
 
 
 class dummy_cost:
     @staticmethod
     def function(y, z):
-        return y * z
+        raise NotImplementedError
 
     @staticmethod
     def derivative(y, z):
-        return y - z
+        raise NotImplementedError
 
 
 class logistic_activation:
     @staticmethod
     def function(a):
-        return 1.0 / (1.0 + np.exp(a))
+        return 1.0 / (1.0 + np.exp(-a * 1.0))
 
     @staticmethod
     def derivative(a):
-        s = logistic_activation.function(a)
-        return s * (1 - s)
+        s = logistic_activation.function(a * 1.0)
+        return 1.0 * s * (1 - s)
 
 
 class identy_activation:
@@ -120,14 +122,14 @@ class identy_activation:
 class quadratic_cost:
     @staticmethod
     def function(y, z):
-        return 0.5 * (y - z) ** 2
+        return 0.5 * ((y - z) ** 2)
 
     @staticmethod
     def derivative(y, z):
-        return y - z
+        return z - y
 
 
-sizes = [2, 3, 2]
+sizes = [2, 2, 1]
 print "sizes", sizes
 L = len(sizes)
 
@@ -157,15 +159,12 @@ def backprop(x, y):
     try:
         if x.shape[1] != 1:
             raise BaseException("x invalid size, should be (d, 1)")
-        if y.shape[1] != 1:
+        if len(y) > 1 and y.shape[1] != 1:
             raise BaseException("y invalid size, should be (c, 1)")
     except IndexError:
         raise BaseException("x or y have invalid size", x.shape, y.shape)
 
-    # add input layer
-    z[0] = x
-
-    feedforward()  # calculate a, z
+    feedforward(x)  # calculate a, z
     feedbackward(y)  # calculate err
 
     w_nabla = [None] + [np.empty(s) for s in W_sizes]
@@ -174,16 +173,24 @@ def backprop(x, y):
     # calculate nabla
     # from 1 to L, except 0 layer
     for l in range(L)[1:]:
+        print " l=", l
+
         w_nabla[l] = np.dot(err[l], z[l - 1].T)  # Nl x Nl-1 = Nl x 1 * 1 x Nl-1
+        print "  w_nabla", w_nabla[l], z[l - 1].T
         if w_nabla[l].shape != W[l].shape:
             raise BaseException("w_nabla[l] invalid size, should be same as W[l]")
+
         b_nabla[l] = err[l]
+        print "  b_nabla", b_nabla[l]
 
     return w_nabla, b_nabla
 
 
-def feedforward():
+def feedforward(x):
     # z = [z0, z1, ..., zL]
+
+    # add input layer
+    z[0] = x
 
     if len(z) != L:
         raise BaseException("z invalid size, should be L")
@@ -203,6 +210,8 @@ def feedforward():
         a[l] = _a
         z[l] = _z
 
+    return z[-1]
+
 
 def feedbackward(y):
     # ξ  = [None, ξ1, ξ2, ..., ξL]
@@ -212,6 +221,7 @@ def feedbackward(y):
               cost_func.derivative(y, z[-1])  # ξL =  h'(aL) * E'(y, zL)
     if err[-1].shape[1] != 1:
         raise BaseException("err[L] invalid size, should be (NL, 1)")
+    print "err", err[-1], z[-1], y
 
     # from L-1 to 1, except 0 layer
     for l in reversed(range(L - 1)[1:]):
@@ -220,51 +230,82 @@ def feedbackward(y):
                np.dot(W[l + 1].T, err[l + 1])  # Nl x 1 * dot(Nl x Nl+1, Nl+1 * 1)
         if _err.shape[1] != 1:
             raise BaseException("_err invalid size, should be (Nl, 1)")
-
+        print "  l=", l, " ", _err
         err[l] = _err
 
 
-def GD(data, regulariztion=None, eta=0.1, gamma=1.0):
+def GD(data, regulariztion=None, eta=0.1, gamma=0.1, epochs=100):
     n_samples = len(data)
 
-    np.random.shuffle(data)
-    for x, y in data:
-        w_nabla, b_nabla = backprop(x, y)
+    for epoch in range(epochs):
+        print epoch
 
-        for l in range(L)[1:]:
-            if regulariztion is None:
-                W[l] = W[l] - (eta / float(n_samples)) * w_nabla[l]
-            elif regulariztion == 'l1':
-                W[l] = W[l] - eta * gamma / float(n_samples) - (eta / float(n_samples)) * w_nabla[l]
-            elif regulariztion == 'l2':
-                W[l] = W[l] * (1 - eta * gamma / float(n_samples)) - (eta / float(n_samples)) * w_nabla[l]
+        # np.random.shuffle(data)
+        for x, y in data:
+            w_nabla, b_nabla = backprop(x, y)
 
-            b[l] = b[l] - (eta / float(n_samples)) * b_nabla[l]
+            for l in range(L)[1:]:
+                if regulariztion is None:
+                    W_new = W[l] - (eta / float(n_samples)) * w_nabla[l]
+                    print "  W_new", W_new
+                    print "  W_new - W_old", W_new - W[l]
+                    W[l] = W_new
+                elif regulariztion == 'l1':
+                    W[l] = W[l] - eta * gamma / float(n_samples) - (eta / float(n_samples)) * w_nabla[l]
+                elif regulariztion == 'l2':
+                    W[l] = W[l] * (1 - eta * gamma / float(n_samples)) - (eta / float(n_samples)) * w_nabla[l]
+
+                b_new = b[l] - (eta / float(n_samples)) * b_nabla[l]
+                print "  B_new", b_new
+                print "  B_new - B_old", b_new - b[l]
+                b[l] = b_new
 
 
-def convert2readable(x, y):
-    n_samples, d_features = x.shape
-    _x = x.reshape((n_samples, d_features, 1)).astype(np.float64)
-    n_samples, m_classes = y.shape
-    _y = y.reshape((n_samples, m_classes, 1)).astype(np.float64)
 
-    return zip(_x, _y)
+def predict(data):
+    for x in data:
+        print feedforward(x), np.argmax(feedforward(x))
+
+
+def convert2readable(x, norm=False):
+    if norm:
+        x = normalize(x.astype(np.float64))
+
+    if len(x.shape) > 1:
+        n_samples, d_features = x.shape
+        _x = x.reshape((n_samples, d_features, 1)).astype(np.float64)
+    else:
+        n_samples = x.shape[0]
+        _x = x.reshape((n_samples, 1)).astype(np.float64)
+
+    return _x
 
 
 if __name__ == '__main__':
     x_train = np.array([
-        [0, 5],
-        [0, 4],
-        [10, 3],
-        [14, 2],
+        [-10, 5],
+        [-20, 4],
+        [100, 7],
+        [140, 5],
     ])
 
     y_train = np.array([
-        [0, 1],
-        [0, 1],
-        [1, 0],
-        [1, 0],
+        10,# [0, 1],
+        9,# [0, 1],
+        203, # [1, 0],
+        206, # [1, 0],
     ])
 
-    train_data = convert2readable(x_train, y_train)
-    GD(train_data)
+    train_data = zip(convert2readable(x_train, norm=True), convert2readable(y_train))
+    GD(train_data, epochs=10, regulariztion='l2')
+
+    x_test = np.array([
+        [-10, 4],
+        [-15, 2],
+        [120, 1],
+        [130, 5],
+    ])
+
+    test_data = convert2readable(x_test, norm=True)
+
+    predict(test_data)
