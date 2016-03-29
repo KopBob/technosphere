@@ -46,6 +46,16 @@ class quadratic_cost:
         return z - y
 
 
+class cross_entropy:
+    @staticmethod
+    def function(y, z):
+        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))
+
+    @staticmethod
+    def derivative(y, z):
+        return (z - y) / ((z + 1) * z)
+
+
 class NN:
     def __init__(self, sizes, activation_funcs, cost,
                  regularization=None, eta=0.1, gamma=0.1, epochs=100):
@@ -170,7 +180,7 @@ class NN:
 
                     self.b[l] -= (self.eta / float(1)) * b_nabla[l]
 
-            sys.stdout.write('\r' +"Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), n_cv))
+            sys.stdout.write('\r' + "Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), n_cv))
             sys.stdout.flush()
 
     def evaluate(self, cv_data):
