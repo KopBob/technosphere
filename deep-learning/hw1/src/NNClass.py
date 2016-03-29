@@ -64,7 +64,7 @@ class NN:
         print "b_sizes", self.b_sizes
 
         self.W = [None] + [np.random.random(s) for s in self.W_sizes]  # W = [None, W1, W2, ..., WL]
-        self.b = [None] + [np.random.random(s) for s in self.b_sizes]  # b = [None, b1, b2, ..., bL]
+        self.b = [None] + [np.ones(s) for s in self.b_sizes]  # b = [None, b1, b2, ..., bL]
         # None is for nice indexing
 
         # L-1 activation functions
@@ -93,15 +93,12 @@ class NN:
         # calculate nabla
         # from 1 to L, except 0 layer
         for l in range(self.L)[1:]:
-            print " l=", l
 
             w_nabla[l] = np.dot(self.err[l], self.z[l - 1].T)  # Nl x Nl-1 = Nl x 1 * 1 x Nl-1
-            print "  w_nabla", w_nabla[l], self.z[l - 1].T
             if w_nabla[l].shape != self.W[l].shape:
                 raise BaseException("w_nabla[l] invalid size, should be same as W[l]")
 
             b_nabla[l] = self.err[l]
-            print "  b_nabla", b_nabla[l]
 
         return w_nabla, b_nabla
 
@@ -139,7 +136,6 @@ class NN:
                        self.cost_func.derivative(y, self.z[-1])  # ξL =  h'(aL) * E'(y, zL)
         if self.err[-1].shape[1] != 1:
             raise BaseException("err[L] invalid size, should be (NL, 1)")
-        print "err", self.err[-1], self.z[-1], y
 
         # from L-1 to 1, except 0 layer
         for l in reversed(range(self.L - 1)[1:]):
@@ -148,16 +144,14 @@ class NN:
                    np.dot(self.W[l + 1].T, self.err[l + 1])  # Nl x 1 * dot(Nl x Nl+1, Nl+1 * 1)
             if _err.shape[1] != 1:
                 raise BaseException("_err invalid size, should be (Nl, 1)")
-            print "  l=", l, " ", _err
             self.err[l] = _err
 
     def GD(self, data):
         n_samples = len(data)
 
         for epoch in range(self.epochs):
-            print epoch
 
-            # np.random.shuffle(data)
+            np.random.shuffle(data)
             for x, y in data:
                 w_nabla, b_nabla = self.backprop(x, y)
 
@@ -165,8 +159,6 @@ class NN:
                     if self.regularization is None:
                         W_new = self.W[l] \
                                 - (self.eta / float(n_samples)) * w_nabla[l]
-                        print "  W_new", W_new
-                        print "  W_new - W_old", W_new - self.W[l]
                         self.W[l] = W_new
                     elif self.regularization == 'l1':
                         self.W[l] = self.W[l] - self.eta * self.gamma / float(n_samples) \
@@ -176,13 +168,11 @@ class NN:
                                     - (self.eta / float(n_samples)) * w_nabla[l]
 
                     b_new = self.b[l] - (self.eta / float(n_samples)) * b_nabla[l]
-                    print "  B_new", b_new
-                    print "  B_new - B_old", b_new - self.b[l]
                     self.b[l] = b_new
 
     def predict(self, data):
         for x in data:
-            print self.feedforward(x), np.argmax(self.feedforward(x))
+            print self.feedforward(x).ravel(), np.argmax(self.feedforward(x))
 
 
 def convert2readable(x, norm=False):
