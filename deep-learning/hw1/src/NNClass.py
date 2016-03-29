@@ -1,4 +1,6 @@
 # coding=utf-8
+import sys
+
 import numpy as np
 from sklearn.preprocessing import normalize
 
@@ -63,7 +65,7 @@ class NN:
         print "W_sizes", self.W_sizes
         print "b_sizes", self.b_sizes
 
-        self.W = [None] + [np.random.random(s) for s in self.W_sizes]  # W = [None, W1, W2, ..., WL]
+        self.W = [None] + [np.random.normal(0, 0.1, s) for s in self.W_sizes]  # W = [None, W1, W2, ..., WL]
         self.b = [None] + [np.ones(s) for s in self.b_sizes]  # b = [None, b1, b2, ..., bL]
         # None is for nice indexing
 
@@ -146,29 +148,34 @@ class NN:
                 raise BaseException("_err invalid size, should be (Nl, 1)")
             self.err[l] = _err
 
-    def GD(self, data):
-        n_samples = len(data)
+    def GD(self, train_data, cv_data):
+        n_samples = len(train_data)
+        n_cv = len(cv_data)
 
         for epoch in range(self.epochs):
 
-            np.random.shuffle(data)
-            for x, y in data:
+            np.random.shuffle(train_data)
+            for x, y in train_data:
                 w_nabla, b_nabla = self.backprop(x, y)
 
                 for l in range(self.L)[1:]:
                     if self.regularization is None:
-                        W_new = self.W[l] \
-                                - (self.eta / float(n_samples)) * w_nabla[l]
-                        self.W[l] = W_new
+                        self.W[l] -= (self.eta) * w_nabla[l]
                     elif self.regularization == 'l1':
-                        self.W[l] = self.W[l] - self.eta * self.gamma / float(n_samples) \
+                        self.W[l] = self.W[l] - self.eta * self.gamma / float(1) \
                                     - (self.eta / float(n_samples)) * w_nabla[l]
                     elif self.regularization == 'l2':
-                        self.W[l] = self.W[l] * (1 - self.eta * self.gamma / float(n_samples)) \
-                                    - (self.eta / float(n_samples)) * w_nabla[l]
+                        self.W[l] = self.W[l] * (1 - self.eta * self.gamma / float(1)) \
+                                    - (self.eta / float(1)) * w_nabla[l]
 
-                    b_new = self.b[l] - (self.eta / float(n_samples)) * b_nabla[l]
-                    self.b[l] = b_new
+                    self.b[l] -= (self.eta / float(1)) * b_nabla[l]
+
+            sys.stdout.write('\r' +"Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), n_cv))
+            sys.stdout.flush()
+
+    def evaluate(self, cv_data):
+        cv_results = [(np.argmax(self.feedforward(x)), np.argmax(y)) for (x, y) in cv_data]
+        return sum(int(x == y) for (x, y) in cv_results)
 
     def predict(self, data):
         for x in data:
