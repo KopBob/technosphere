@@ -39,11 +39,60 @@ class IdentyFunc:
         return 1
 
 
+class SoftmaxFunc:
+    @staticmethod
+    def function(a):
+        s = np.exp(a)
+        return (s.T / np.sum(s, axis=1)).T
+
+    @staticmethod
+    def derivative(a):
+        y = SoftmaxFunc.function(a)
+        return y * (1 - y)
+
+
+class TanhFunc:
+    @staticmethod
+    @np.vectorize
+    def function(a, r=1.0):
+        return np.tanh(a * r)
+
+    @staticmethod
+    @np.vectorize
+    def derivative(a, r=1.0):
+        t = np.tanh(r * a)
+        return r * (1 - t * t)
+
+
 class QuadraticCost:
     @staticmethod
     @np.vectorize
     def function(y, z):
-        return 0.5 * ((z - y) ** 2) # ??
+        return 0.5 * ((z - y) ** 2)  # ??
+
+    @staticmethod
+    @np.vectorize
+    def derivative(y, z):
+        return z - y
+
+
+class CrossEntropyCost:
+    @staticmethod
+    @np.vectorize
+    def function(y, z):
+        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))  # ??
+
+    @staticmethod
+    @np.vectorize
+    def derivative(y, z):
+        return (z - y) / ((z + 1) * z)
+
+
+class MulticlassCrossEntropyCost:
+    @staticmethod
+    @np.vectorize
+    def function(y, z):
+        return -np.sum(y * np.log(z))
 
     @staticmethod
     @np.vectorize
@@ -145,10 +194,10 @@ if __name__ == '__main__':
     ])
 
     # y_train = np.array([
-    #     10,  # [0, 1],
-    #     9,  # [0, 1],
-    #     203,  # [1, 0],
-    #     206,  # [1, 0],
+    #     [10],  # [0, 1],
+    #     [9],  # [0, 1],
+    #     [203],  # [1, 0],
+    #     [206],  # [1, 0],
     # ])
 
     y_train = np.array([
@@ -160,8 +209,8 @@ if __name__ == '__main__':
 
     train_data = zip(normalize(x_train.astype(np.float64)), y_train.astype(np.float64))
 
-    nn = NNMiniBatch([2, 3, 2], [LogisticFunc, IdentyFunc], QuadraticCost,
-                     epochs=400, mini_batch_size=1, eta=0.9)
+    nn = NNMiniBatch([2, 3, 2], [TanhFunc, IdentyFunc], QuadraticCost,
+                     epochs=100, mini_batch_size=2, eta=0.1)
     nn.sgd(train_data)
 
     x_test = np.array([
