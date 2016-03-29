@@ -36,6 +36,18 @@ class identy_activation:
         return np.ones(a.shape)
 
 
+class softmax_activation:
+    @staticmethod
+    def function(a):
+        s = np.exp(a)
+        return s / np.sum(s)
+
+    @staticmethod
+    def derivative(a):
+        y = softmax_activation.function(a)
+        return y * (1 - y)
+
+
 class quadratic_cost:
     @staticmethod
     def function(y, z):
@@ -46,7 +58,7 @@ class quadratic_cost:
         return z - y
 
 
-class cross_entropy:
+class cross_entropy_cost:
     @staticmethod
     def function(y, z):
         return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))
@@ -54,6 +66,16 @@ class cross_entropy:
     @staticmethod
     def derivative(y, z):
         return (z - y) / ((z + 1) * z)
+
+
+class multiclass_cross_entropy_cost:
+    @staticmethod
+    def function(y, z):
+        return -np.sum(y * np.log(z))
+
+    @staticmethod
+    def derivative(y, z):
+        return z - y
 
 
 class NN:
@@ -88,79 +110,41 @@ class NN:
         self.err = [None] * self.L  # ξ  = [None, ξ1, ξ2, ..., ξL]
 
     def backprop(self, x, y):
-        try:
-            if x.shape[1] != 1:
-                raise BaseException("x invalid size, should be (d, 1)")
-            if len(y) > 1 and y.shape[1] != 1:
-                raise BaseException("y invalid size, should be (c, 1)")
-        except IndexError:
-            raise BaseException("x or y have invalid size", x.shape, y.shape)
-
         self.feedforward(x)  # calculate a, z
         self.feedbackward(y)  # calculate err
 
         w_nabla = [None] + [np.empty(s) for s in self.W_sizes]
         b_nabla = [None] + [np.empty(s) for s in self.b_sizes]
 
-        # calculate nabla
-        # from 1 to L, except 0 layer
-        for l in range(self.L)[1:]:
-
+        for l in range(self.L)[1:]:  # from 1 to L, except 0 layer
             w_nabla[l] = np.dot(self.err[l], self.z[l - 1].T)  # Nl x Nl-1 = Nl x 1 * 1 x Nl-1
-            if w_nabla[l].shape != self.W[l].shape:
-                raise BaseException("w_nabla[l] invalid size, should be same as W[l]")
-
             b_nabla[l] = self.err[l]
 
         return w_nabla, b_nabla
 
     def feedforward(self, x):
+        # a = [None, a1, a2, ..., aL]  al =  np.dot(Wl, zl-1)  + bl
         # z = [z0, z1, ..., zL]
-
         # add input layer
         self.z[0] = x
-
-        if len(self.z) != self.L:
-            raise BaseException("z invalid size, should be L")
-
-        # a = [None, a1, a2, ..., aL]  al =  np.dot(Wl, zl-1)  + bl
-
-        # from 1 to L, except 0 layer
-        for l in range(self.L)[1:]:
-            _a = np.dot(self.W[l], self.z[l - 1]) + self.b[l]  # (Nl x Nl-1 * Nl-1 x 1 + Nl x 1)
-            if _a.shape[1] != 1:
-                raise BaseException("a invalid size, should be (Nl, 1)")
-
-            _z = self.a_funcs[l].function(_a)
-            if _z.shape[1] != 1:
-                raise BaseException("z invalid size, should be (Nl, 1)")
-
-            self.a[l] = _a
-            self.z[l] = _z
-
+        for l in range(self.L)[1:]:  # from 1 to L, except 0 layer
+            self.a[l] = np.dot(self.W[l], self.z[l - 1]) + self.b[l]  # (Nl x Nl-1 * Nl-1 x 1 + Nl x 1)
+            self.z[l] = self.a_funcs[l].function(self.a[l])
         return self.z[-1]
 
     def feedbackward(self, y):
         # ξ  = [None, ξ1, ξ2, ..., ξL]
-
         # output layer error
         self.err[-1] = self.a_funcs[-1].derivative(self.a[-1]) * \
                        self.cost_func.derivative(y, self.z[-1])  # ξL =  h'(aL) * E'(y, zL)
-        if self.err[-1].shape[1] != 1:
-            raise BaseException("err[L] invalid size, should be (NL, 1)")
 
-        # from L-1 to 1, except 0 layer
-        for l in reversed(range(self.L - 1)[1:]):
+        for l in reversed(range(self.L - 1)[1:]):  # from L-1 to 1, except 0 layer
             # ξj =  h'(aj) * np.dot(Wj+1.T, ξj+1)
-            _err = self.a_funcs[l].derivative(self.a[l]) * \
+            self.err[l] = self.a_funcs[l].derivative(self.a[l]) * \
                    np.dot(self.W[l + 1].T, self.err[l + 1])  # Nl x 1 * dot(Nl x Nl+1, Nl+1 * 1)
-            if _err.shape[1] != 1:
-                raise BaseException("_err invalid size, should be (Nl, 1)")
-            self.err[l] = _err
 
-    def GD(self, train_data, cv_data):
+    def GD(self, train_data, cv_data=None):
         n_samples = len(train_data)
-        n_cv = len(cv_data)
 
         for epoch in range(self.epochs):
 
@@ -180,8 +164,9 @@ class NN:
 
                     self.b[l] -= (self.eta / float(1)) * b_nabla[l]
 
-            sys.stdout.write('\r' + "Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), n_cv))
-            sys.stdout.flush()
+            if cv_data:
+                sys.stdout.write('\r' + "Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), len(cv_data)))
+                sys.stdout.flush()
 
     def evaluate(self, cv_data):
         cv_results = [(np.argmax(self.feedforward(x)), np.argmax(y)) for (x, y) in cv_data]
