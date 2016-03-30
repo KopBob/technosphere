@@ -1,23 +1,17 @@
-import numpy as np
+from src.cost_funcs import *
 
-import activation_funcs
-import cost_funcs
+from src.functions.activation_funcs import *
+from src.functions.activation_funcs import dummy_a
 
 
 class Network(object):
-    def __init__(self, sizes, act_funcs, cost_func='quadratic', mode='full',
-                 eta=0.1, epochs=3, mini_batch_size=10):
-        self.mode = mode
+    def __init__(self, sizes, act_funcs, cost_func, eta=0.1, epochs=3, mini_batch_size=None):
         self.eta = eta
         self.epochs = epochs
         self.mini_batch_size = mini_batch_size
 
-        self.activation_funcs = [0] + [_activation_funcs[af]["function"] for af in act_funcs]
-        self.activation_derivative_funcs = [0] + [_activation_funcs[af]["derivative"] for af in act_funcs]
-
-        self.cost_func_name = cost_func
-        self.cost_func = _cost_funcs[cost_func]["function"]
-        self.cost_derivative_func = _cost_funcs[cost_func]["derivative"]
+        self.a_funcs = [dummy_a] + act_funcs
+        self.cost_func = cost_func
 
         self.num_layers = len(sizes)
         self.sizes = sizes
@@ -41,21 +35,15 @@ class Network(object):
         return self._biases[1:]
 
     def fit(self, x_train, y_train, x_test, y_test):
-
-        if self.mode == 'online':
-            raise NotImplementedError
-        elif self.mode == 'batch':
+        if self.mini_batch_size:
             self._batch_fit(x_train, y_train, x_test, y_test)
-        elif self.mode == 'full':
+        else:
             self._full_fit(x_train, y_train, x_test, y_test)
 
         return self
 
     def predict(self, x_pred):
         y_pred = np.array([self._feedforward(x).ravel() for x in x_pred])
-        if self.cost_func_name == "multiclass_cross_entropy":
-            return np.argmax(y_pred, axis=1)
-
         return y_pred
 
     def predict_proba(self, x_pred):
@@ -64,27 +52,28 @@ class Network(object):
 
     def evaluate(self, x_test, y_test):
         y_pred = [self._feedforward(x).ravel() for x in x_test]
-        return self.cost_func(y_test, y_pred)
+        return self.cost_func.func(y_test, np.array(y_pred))
 
     #
     # Mode functions
     #
 
-    def _sample_fit(self, x, y):
+    def _sample_fit(self, x, y, n_samples):
         w_nabla, b_nabla = self._backprop(x, y)
 
         for l in range(self.num_layers)[1:]:
-            self._weights[l] -= self.eta * w_nabla[l]
-            self._biases[l] -= self.eta * b_nabla[l]
+            self._weights[l] -= self.eta * w_nabla[l]/float(n_samples)
+            self._biases[l] -= self.eta * b_nabla[l]/float(n_samples)
+        return self
 
     def _full_fit(self, x_train, y_train, x_test, y_test):
         n_samples, _ = x_train.shape
 
         data_train = zip(x_train, y_train)
-
         for j in range(self.epochs):
+            np.random.shuffle(data_train)
             for x, y in data_train:
-                self._sample_fit(x, y)
+                self._sample_fit(x, y, n_samples)
 
             self.scores.append(self.evaluate(x_test, y_test))
             # print "Epoch {0}: {1} ".format(j, self.scores[-1])
@@ -119,12 +108,12 @@ class Network(object):
         self.z[0] = x
         for l in range(self.num_layers)[1:]:
             self.a[l] = self._layer_a(l)
-            self.z[l] = self.activation_funcs[l](self.a[l])
+            self.z[l] = self.a_funcs[l].func(self.a[l])
 
         return self.z[-1]
 
     def _feedbackward(self, y):
-        y = y[:, np.newaxis]
+        y = y[:, np.newaxis] if hasattr(y, '__len__') else y
 
         self.errors[-1] = self._output_error(y)
 
@@ -150,12 +139,12 @@ class Network(object):
     #
 
     def _output_error(self, y):
-        return self.cost_derivative_func(y, self.z[-1]) * \
-               self.activation_derivative_funcs[-1](self.a[-1])
+        return self.cost_func.derivative(y, self.z[-1]) * \
+               self.a_funcs[-1].derivative(self.a[-1])
 
     def _layer_error(self, l):
         return np.dot(self._weights[l + 1].T, self.errors[l + 1]) * \
-               self.activation_derivative_funcs[l](self.a[l])
+               self.a_funcs[l].derivative(self.a[l])
 
     def _layer_w_nabla(self, l):
         return np.dot(self.errors[l], self.z[l - 1].T)
@@ -166,37 +155,37 @@ class Network(object):
     def _layer_a(self, l):
         return np.dot(self._weights[l], self.z[l - 1]) + self._biases[l]
 
-
-_activation_funcs = {
-    'logistic': {
-        'function': activation_funcs.logistic_func,
-        'derivative': activation_funcs.logistic_derivative_func,
-    },
-    'tanh': {
-        'function': activation_funcs.tanh_func,
-        'derivative': activation_funcs.tanh_derivative_func,
-    },
-    'arctan': {
-        'function': activation_funcs.arctan_func,
-        'derivative': activation_funcs.arctan_derivative_func,
-    },
-    'softmax': {
-        'function': activation_funcs.softmax_func,
-        'derivative': activation_funcs.softmax_derivative_func,
-    },
-}
-
-_cost_funcs = {
-    'quadratic': {
-        'function': cost_funcs.quadratic_cost_func,
-        'derivative': cost_funcs.quadratic_cost_derivative_func,
-    },
-    'cross_entropy': {
-        'function': cost_funcs.cross_entropy_cost_func,
-        'derivative': cost_funcs.cross_entropy_cost_derivative_func,
-    },
-    'multiclass_cross_entropy': {
-        'function': cost_funcs.multiclass_cross_entropy_cost_func,
-        'derivative': cost_funcs.multiclass_cross_entropy_cost_derivative_func,
-    }
-}
+#
+# _activation_funcs = {
+#     'logistic': {
+#         'function': activation_funcs.logistic_func,
+#         'derivative': activation_funcs.logistic_derivative_func,
+#     },
+#     'tanh': {
+#         'function': activation_funcs.tanh_func,
+#         'derivative': activation_funcs.tanh_derivative_func,
+#     },
+#     'arctan': {
+#         'function': activation_funcs.arctan_func,
+#         'derivative': activation_funcs.arctan_derivative_func,
+#     },
+#     'softmax': {
+#         'function': activation_funcs.softmax_func,
+#         'derivative': activation_funcs.softmax_derivative_func,
+#     },
+# }
+#
+# _cost_funcs = {
+#     'quadratic': {
+#         'function': cost_funcs.quadratic_cost_func,
+#         'derivative': cost_funcs.quadratic_cost_derivative_func,
+#     },
+#     'cross_entropy': {
+#         'function': cost_funcs.cross_entropy_cost_func,
+#         'derivative': cost_funcs.cross_entropy_cost_derivative_func,
+#     },
+#     'multiclass_cross_entropy': {
+#         'function': cost_funcs.multiclass_cross_entropy_cost_func,
+#         'derivative': cost_funcs.multiclass_cross_entropy_cost_derivative_func,
+#     }
+# }

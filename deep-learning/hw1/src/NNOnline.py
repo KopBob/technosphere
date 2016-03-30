@@ -2,81 +2,11 @@
 import sys
 
 import numpy as np
-from sklearn.preprocessing import normalize
 
+from functions.activation_funcs import *
+from functions.cost_funcs import *
 
-class dummy_activation:
-    @staticmethod
-    def function(a):
-        raise NotImplementedError
-
-    @staticmethod
-    def derivative(a):
-        raise NotImplementedError
-
-
-class logistic_activation:
-    @staticmethod
-    def function(a):
-        return 1.0 / (1.0 + np.exp(-a * 1.0))
-
-    @staticmethod
-    def derivative(a):
-        s = logistic_activation.function(a * 1.0)
-        return 1.0 * s * (1 - s)
-
-
-class identy_activation:
-    @staticmethod
-    def function(a):
-        return a
-
-    @staticmethod
-    def derivative(a):
-        return np.ones(a.shape)
-
-
-class softmax_activation:
-    @staticmethod
-    def function(a):
-        s = np.exp(a)
-        return s / np.sum(s)
-
-    @staticmethod
-    def derivative(a):
-        y = softmax_activation.function(a)
-        return y * (1 - y)
-
-
-class quadratic_cost:
-    @staticmethod
-    def function(y, z):
-        return 0.5 * ((y - z) ** 2)
-
-    @staticmethod
-    def derivative(y, z):
-        return z - y
-
-
-class cross_entropy_cost:
-    @staticmethod
-    def function(y, z):
-        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))
-
-    @staticmethod
-    def derivative(y, z):
-        return (z - y) / ((z + 1) * z)
-
-
-class multiclass_cross_entropy_cost:
-    @staticmethod
-    def function(y, z):
-        return -np.sum(y * np.log(z))
-
-    @staticmethod
-    def derivative(y, z):
-        return z - y
-
+from misc import convert2readable
 
 class NN:
     def __init__(self, sizes, activation_funcs, cost,
@@ -141,7 +71,7 @@ class NN:
         for l in reversed(range(self.L - 1)[1:]):  # from L-1 to 1, except 0 layer
             # ξj =  h'(aj) * np.dot(Wj+1.T, ξj+1)
             self.err[l] = self.a_funcs[l].derivative(self.a[l]) * \
-                   np.dot(self.W[l + 1].T, self.err[l + 1])  # Nl x 1 * dot(Nl x Nl+1, Nl+1 * 1)
+                          np.dot(self.W[l + 1].T, self.err[l + 1])  # Nl x 1 * dot(Nl x Nl+1, Nl+1 * 1)
 
     def GD(self, train_data, cv_data=None):
         n_samples = len(train_data)
@@ -175,20 +105,6 @@ class NN:
     def predict(self, data):
         for x in data:
             print self.feedforward(x).ravel(), np.argmax(self.feedforward(x))
-
-
-def convert2readable(x, norm=False):
-    if norm:
-        x = normalize(x.astype(np.float64))
-
-    if len(x.shape) > 1:
-        n_samples, d_features = x.shape
-        _x = x.reshape((n_samples, d_features, 1)).astype(np.float64)
-    else:
-        n_samples = x.shape[0]
-        _x = x.reshape((n_samples, 1)).astype(np.float64)
-
-    return _x
 
 
 if __name__ == '__main__':

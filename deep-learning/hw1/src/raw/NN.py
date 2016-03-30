@@ -78,6 +78,8 @@ from sklearn.preprocessing import normalize
 
 
 
+
+
 class dummy_activation:
     @staticmethod
     def function(a):
@@ -129,7 +131,7 @@ class quadratic_cost:
         return z - y
 
 
-sizes = [2, 2, 1]
+sizes = [2, 4, 1]
 print "sizes", sizes
 L = len(sizes)
 
@@ -261,7 +263,6 @@ def GD(data, regulariztion=None, eta=0.1, gamma=0.1, epochs=100):
                 b[l] = b_new
 
 
-
 def predict(data):
     for x in data:
         print feedforward(x), np.argmax(feedforward(x))
@@ -290,11 +291,18 @@ if __name__ == '__main__':
     ])
 
     y_train = np.array([
-        10,# [0, 1],
-        9,# [0, 1],
-        203, # [1, 0],
-        206, # [1, 0],
+        10,  # [0, 1],
+        9,  # [0, 1],
+        203,  # [1, 0],
+        206,  # [1, 0],
     ])
+
+    # y_train = np.array([
+    #     [0, 1],
+    #     [0, 1],
+    #     [1, 0],
+    #     [1, 0],
+    # ])
 
     train_data = zip(convert2readable(x_train, norm=True), convert2readable(y_train))
     GD(train_data, epochs=10, regulariztion='l2')
