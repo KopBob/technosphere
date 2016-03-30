@@ -7,19 +7,18 @@ class QuadraticCost:
         return 0.5 * (np.sum((z - y) ** 2))  # ??
 
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def derivative(y, z):
         return z - y
 
 
 class CrossEntropyCost:
     @staticmethod
-    @np.vectorize
     def function(y, z):
         return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))  # ??
 
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def derivative(y, z):
         return (z - y) / ((z + 1) * z)
 
@@ -31,6 +30,6 @@ class MulticlassCrossEntropyCost:
         return -np.sum(y * np.log(z))
 
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def derivative(y, z):
         return z - y

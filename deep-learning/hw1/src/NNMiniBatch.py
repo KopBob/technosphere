@@ -9,6 +9,77 @@ from functions.cost_objs import *
 from functions.activation_objs import *
 
 
+# d - number of features (size of input layer)
+# c - number of classes  (size of output layer)
+# x = [       # y = [
+#     [x1],   #     [y1],
+#     [x2],   #     ...,
+#     ...,    #     [yc]
+#     [xd]    # ] (c x 1)
+# ] (d x 1)
+
+# L - number of layers
+# z = [z0, z1, ..., zL]
+# z0 = [
+#     [x1],
+#     [x1],
+#     ...,
+#     [xd],
+# ] (d x 1) (N0 x 1)
+
+# z1 = [h(a1)] (N1 x 1)
+# zL = [h(aL)] (c = NL x 1)
+
+# a = [a1, a2, ..., aL]
+# a1 = [
+#     [a1[0]  = np.dot(W1[0, :], z0)  + b1[0]],
+#     [a1[1]  = np.dot(W1[1, :], z0)  + b1[1]],
+#     ...,
+#     [a1[N1] = np.dot(W1[N1, :], z0) + b1[N1]],
+# ] (N1 x 1)   al =  np.dot(Wl, zl-1)  + bl
+
+# W = [W1, W2, ..., WL]
+# W1 (N1 x d)
+# W2 (N2 x N1)
+
+# W1 =[[ w0_0,   w0_1,   ...,  w0_d ],
+#      [ w1_0,   w1_1,   ...,  w1_d ],
+#      ...,
+#      [ wN1_0,  wN1_1,  ...,  wN1_d],
+# ] (N1 x N0)
+
+# WL =[[ w0_0,     w0_1,     ...,  w0_NL-1 ],
+#      [ w1_0,     w1_1,     ...,  w1_NL-1 ],
+#      ...,
+#      [ wNL_0,    wNL_1,    ...,  wNL_NL-1],
+# ](NL x NL-1)
+
+# b = [b1, b2, ..., bL]
+# b1 = [
+#     [b1[0]],
+#     [b1[1]],
+#     ...,
+#     [b1[N1]]
+# ] (N1 x 1)
+
+# ξ - error
+# ξ  = [ξ1, ξ2, ..., ξL]
+# ξL = [
+#     [ξL[0]  = h'(aL[0])  * E'(y, zL[0])],
+#     [ξL[1]  = h'(aL[1])  * E'(y, zL[1])],
+#     ...,
+#     [ξL[NL] = h'(aL[NL]) * E'(y, zL[NL])],
+# ] (NL x 1)   ξL =  h'(aL) * E'(y, zL)
+
+# j - some hidden layer
+# ξj = [
+#     [ξj[0]  = h'(aj[0])   * np.dot(Wj+1[:, 0].T,  ξj+1) ],
+#     [ξj[1]  = h'(aj[1])]  * np.dot(Wj+1[:, 1].T,  ξj+1) ],
+#     ...,
+#     [ξj[Nj] = h'(aj[Nj])] * np.dot(Wj+1[:, Nj].T, ξj+1) ],
+# ] (NL x 1)   ξj =  h'(aj) * np.dot(Wj+1.T, ξj+1)
+
+
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
                  epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.1):
@@ -45,36 +116,57 @@ class NNMiniBatch:
         self.err = [None] * self.L
 
     def feedforward(self, x):
+        """
+        forward input propagation
+        """
         self.z[0] = x
 
         for l in range(1, self.L):
+            # a[l] = z[l-1] x W[l].T + b[l]
             self.a[l] = self.z[l - 1].dot(self.w[l].T) + self.b[l]
+
+            # z[l] = h(a[l])
             self.z[l] = self.h[l](self.a[l])
 
         return self.z[-1]
 
     def backprop(self, x, y):
+        """
+        backpropagation algorithm
+        """
         self.feedforward(x)
 
         nabla_w = [None] * self.L
         nabla_b = [None] * self.L
 
+        # error backpropagation
+
+        # output layer error
+        # ξL =  h'(aL) * E'(y, zL)
         self.err[-1] = self.h_d[-1](self.a[-1]) * self.c_d(y, self.z[-1])
 
         for l in reversed(range(1, self.L - 1)):
+            # tau =  ξl+1 x Wl+1
             tau_l = self.err[l + 1].dot(self.w[l + 1])
+
+            # ξl = h'(al) * tau
             self.err[l] = self.h_d[l](self.a[l]) * tau_l
 
         for l in range(1, self.L):
+            # ∇w_l = ξl.T x zl-1
             nabla_w[l] = self.err[l].T.dot(self.z[l - 1])
-            # nabla_b[l] = self.err[l][0]
-            # nabla_b[l] = np.sum(self.err[l], axis=0)
+
+            # ∇b_l = I.T x ξl
             nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float64).T.dot(self.err[l])
-        # print nabla_b[1]
-        # print "\n", np.sum(self.b[1])
+
         return nabla_w, nabla_b
 
     def sgd(self, train_data, cv_data=None):
+        """
+        stochastic gradient descent
+        """
+        scores = []
+
         for epoch in range(self.epochs):
             np.random.shuffle(train_data)  # inplace shuffle
 
@@ -92,26 +184,26 @@ class NNMiniBatch:
                              - self.eta * self.l1_rate / np.float64(len(batch))
 
             if cv_data:
+                matches, score = self.evaluate(cv_data)
+
+                scores.append(score)
                 sys.stdout.write(
-                        '\r' + "Epoch {0}: {1} / {2} | | {3}".format(epoch,
-                                                                   self.evaluate(cv_data),
-                                                                   len(cv_data),
-                                                                   y.shape[0]
-                                                                   )
+                        '\r' + "Epoch {0}: {1} / {2} |".format(epoch, matches, len(cv_data))
                 )
                 sys.stdout.flush()
 
+        return scores
+
     def evaluate(self, cv_data):
         x, y = zip(*cv_data)
+        x = np.array(x)
+        y = np.array(y)
 
-        # y_pred = self.feedforward(np.array(x))
-        # y_true = y
-        #
-        # return self.c(y_true, y_pred)
+        y_pred = self.feedforward(x)
 
-        y_pred = np.argmax(self.feedforward(np.array(x)), axis=1)
-        y_true = np.argmax(y, axis=1)
-        return np.sum(y_pred == y_true)
+        matches = np.sum(np.argmax(y_pred, axis=1) == np.argmax(y, axis=1))
+        score = self.c(y, y_pred)
+        return matches, score
 
 
 if __name__ == '__main__':

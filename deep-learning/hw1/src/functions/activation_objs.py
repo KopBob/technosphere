@@ -13,12 +13,12 @@ class DummyFunc:
 
 class LogisticFunc:
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def function(a):
         return 1.0 / (1.0 + np.exp(-a))
 
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def derivative(a):
         s = LogisticFunc.function(a)
         return s * (1.0 - s)
@@ -26,7 +26,7 @@ class LogisticFunc:
 
 class IdentyFunc:
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def function(a):
         return a
 
@@ -49,12 +49,23 @@ class SoftmaxFunc:
 
 class TanhFunc:
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def function(a, r=1.0):
         return np.tanh(a * r)
 
     @staticmethod
-    @np.vectorize
+    # @np.vectorize
     def derivative(a, r=1.0):
         t = np.tanh(r * a)
         return r * (1 - t * t)
+
+
+class ReLuFunc:
+    @staticmethod
+    def function(a):
+        return a * (a > 0).astype(np.float64)
+
+    @staticmethod
+    # @np.vectorize
+    def derivative(a):
+        return (a > 0).astype(np.float64)
