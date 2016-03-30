@@ -1,109 +1,19 @@
 # coding=utf-8
+import sys
+
 import numpy as np
 
 from sklearn.preprocessing import normalize
 
-
-class DummyFunc:
-    @staticmethod
-    def function(*args):
-        raise NotImplementedError
-
-    @staticmethod
-    def derivative(*args):
-        raise NotImplementedError
-
-
-class LogisticFunc:
-    @staticmethod
-    @np.vectorize
-    def function(a):
-        return 1.0 / (1.0 + np.exp(-a * 1.0))
-
-    @staticmethod
-    @np.vectorize
-    def derivative(a):
-        s = LogisticFunc.function(a * 1.0)
-        return 1.0 * s * (1 - s)
-
-
-class IdentyFunc:
-    @staticmethod
-    @np.vectorize
-    def function(a):
-        return a
-
-    @staticmethod
-    @np.vectorize
-    def derivative(a):
-        return 1
-
-
-class SoftmaxFunc:
-    @staticmethod
-    def function(a):
-        s = np.exp(a)
-        return (s.T / np.sum(s, axis=1)).T
-
-    @staticmethod
-    def derivative(a):
-        y = SoftmaxFunc.function(a)
-        return y * (1 - y)
-
-
-class TanhFunc:
-    @staticmethod
-    @np.vectorize
-    def function(a, r=1.0):
-        return np.tanh(a * r)
-
-    @staticmethod
-    @np.vectorize
-    def derivative(a, r=1.0):
-        t = np.tanh(r * a)
-        return r * (1 - t * t)
-
-
-class QuadraticCost:
-    @staticmethod
-    @np.vectorize
-    def function(y, z):
-        return 0.5 * ((z - y) ** 2)  # ??
-
-    @staticmethod
-    @np.vectorize
-    def derivative(y, z):
-        return z - y
-
-
-class CrossEntropyCost:
-    @staticmethod
-    @np.vectorize
-    def function(y, z):
-        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))  # ??
-
-    @staticmethod
-    @np.vectorize
-    def derivative(y, z):
-        return (z - y) / ((z + 1) * z)
-
-
-class MulticlassCrossEntropyCost:
-    @staticmethod
-    @np.vectorize
-    def function(y, z):
-        return -np.sum(y * np.log(z))
-
-    @staticmethod
-    @np.vectorize
-    def derivative(y, z):
-        return z - y
+from functions.cost_objs import *
+from functions.activation_objs import *
 
 
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
-                 epochs=1, eta=0.1, mini_batch_size=10):
+                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.1):
         self.eta = eta
+        self.l1_rate = l1_rate
         self.epochs = epochs
         self.mini_batch_size = mini_batch_size
 
@@ -127,6 +37,7 @@ class NNMiniBatch:
         print "b_sizes", b_sizes
 
         self.w = [[]] + [np.random.normal(0, 0.1, s) for s in w_sizes]
+        # self.w = [[]] + [np.zeros(s) for s in w_sizes]
         self.b = [[]] + [np.ones(s, dtype=np.float64) for s in b_sizes]
 
         self.a = [None] * self.L
@@ -156,12 +67,14 @@ class NNMiniBatch:
 
         for l in range(1, self.L):
             nabla_w[l] = self.err[l].T.dot(self.z[l - 1])
-            nabla_b[l] = np.ones((self.err[l].shape[0], 1)).T.dot(self.err[l])
-
+            # nabla_b[l] = self.err[l][0]
+            # nabla_b[l] = np.sum(self.err[l], axis=0)
+            nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float64).T.dot(self.err[l])
+        # print nabla_b[1]
+        # print "\n", np.sum(self.b[1])
         return nabla_w, nabla_b
 
     def sgd(self, train_data, cv_data=None):
-
         for epoch in range(self.epochs):
             np.random.shuffle(train_data)  # inplace shuffle
 
@@ -173,16 +86,32 @@ class NNMiniBatch:
             nabla_w, nabla_b = self.backprop(x, y)
 
             for l in range(1, self.L):
-                self.w[l] -= self.eta * nabla_w[l] / float(self.mini_batch_size)
-                self.b[l] -= self.eta * nabla_b[l] / float(self.mini_batch_size)
+                self.w[l] -= self.eta * nabla_w[l] / np.float64(len(batch)) \
+                             - self.eta * self.l1_rate / np.float64(len(batch))
+                self.b[l] -= self.eta * nabla_b[l] / np.float64(len(batch)) \
+                             - self.eta * self.l1_rate / np.float64(len(batch))
 
-                # if cv_data:
-                #     sys.stdout.write('\r' + "Epoch {0}: {1} / {2}".format(epoch, self.evaluate(cv_data), len(cv_data)))
-                #     sys.stdout.flush()
+            if cv_data:
+                sys.stdout.write(
+                        '\r' + "Epoch {0}: {1} / {2} | | {3}".format(epoch,
+                                                                   self.evaluate(cv_data),
+                                                                   len(cv_data),
+                                                                   y.shape[0]
+                                                                   )
+                )
+                sys.stdout.flush()
 
-                # def evaluate(self, cv_data):
-                #     cv_results = [(np.argmax(self.feedforward(x)), np.argmax(y)) for (x, y) in cv_data]
-                #     return sum(int(x == y) for (x, y) in cv_results)
+    def evaluate(self, cv_data):
+        x, y = zip(*cv_data)
+
+        # y_pred = self.feedforward(np.array(x))
+        # y_true = y
+        #
+        # return self.c(y_true, y_pred)
+
+        y_pred = np.argmax(self.feedforward(np.array(x)), axis=1)
+        y_true = np.argmax(y, axis=1)
+        return np.sum(y_pred == y_true)
 
 
 if __name__ == '__main__':
@@ -209,7 +138,7 @@ if __name__ == '__main__':
 
     train_data = zip(normalize(x_train.astype(np.float64)), y_train.astype(np.float64))
 
-    nn = NNMiniBatch([2, 3, 2], [TanhFunc, IdentyFunc], QuadraticCost,
+    nn = NNMiniBatch([2, 10, 2], [LogisticFunc, IdentyFunc], QuadraticCost,
                      epochs=100, mini_batch_size=2, eta=0.1)
     nn.sgd(train_data)
 
