@@ -38,7 +38,7 @@ class softmax_activation:
     @staticmethod
     def function(a):
         s = np.exp(a)
-        return s / np.sum(s)
+        return (s / np.sum(s))
 
     @staticmethod
     def derivative(a):

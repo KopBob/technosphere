@@ -8,6 +8,7 @@ from functions.cost_funcs import *
 
 from misc import convert2readable
 
+
 class NN:
     def __init__(self, sizes, activation_funcs, cost,
                  regularization=None, eta=0.1, gamma=0.1, epochs=100):
