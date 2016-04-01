@@ -82,9 +82,10 @@ from functions.activation_objs import *
 
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
-                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch"):
+                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch", stop_rate=0.0):
         self.eta = eta
         self.mode = mode
+        self.stop_rate = stop_rate
         self.l1_rate = l1_rate
         self.epochs = epochs
         self.mini_batch_size = mini_batch_size
@@ -203,6 +204,9 @@ class NNMiniBatch:
                 scores.append(score)
                 scores_diff.append(score_diff)
 
+                if len(scores) > 10:
+                    score_diff = np.mean(np.abs(scores_diff[epoch-10:epoch]))
+
 
                 sys.stdout.write(
                         '\r' + "Epoch {0}: {1} / {2} | {3} | {4}".format(epoch, matches,
@@ -213,8 +217,9 @@ class NNMiniBatch:
 
                 self.prev_score = score
 
-                # if abs(score_diff) < 0.0002:
-                #     break
+                if len(scores) > 10:
+                    if abs(score_diff) < self.stop_rate:
+                        break
 
         return scores_diff, scores
 
