@@ -4,7 +4,7 @@ import numpy as np
 class QuadraticCost:
     @staticmethod
     def function(y, z):
-        return 0.5 * (np.sum((z - y) ** 2))  # ??
+        return 0.5 * (np.sum((z - y) ** 2))/np.float64(y.shape[0])
 
     @staticmethod
     # @np.vectorize
@@ -14,8 +14,9 @@ class QuadraticCost:
 
 class CrossEntropyCost:
     @staticmethod
+    # @np.vectorize
     def function(y, z):
-        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))  # ??
+        return -np.sum(y * np.log(z) + (1 - y) * np.log(1 - z))/np.float64(y.shape[0])
 
     @staticmethod
     # @np.vectorize

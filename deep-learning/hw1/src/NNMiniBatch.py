@@ -82,8 +82,9 @@ from functions.activation_objs import *
 
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
-                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.1):
+                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch"):
         self.eta = eta
+        self.mode = mode
         self.l1_rate = l1_rate
         self.epochs = epochs
         self.mini_batch_size = mini_batch_size
@@ -109,11 +110,13 @@ class NNMiniBatch:
 
         self.w = [[]] + [np.random.normal(0, 0.1, s) for s in w_sizes]
         # self.w = [[]] + [np.zeros(s) for s in w_sizes]
-        self.b = [[]] + [np.ones(s, dtype=np.float64) for s in b_sizes]
+        self.b = [[]] + [np.ones(s, dtype=np.float32) for s in b_sizes]
 
         self.a = [None] * self.L
         self.z = [None] * self.L
         self.err = [None] * self.L
+
+        self.prev_score = 0
 
     def feedforward(self, x):
         """
@@ -157,42 +160,63 @@ class NNMiniBatch:
             nabla_w[l] = self.err[l].T.dot(self.z[l - 1])
 
             # ∇b_l = I.T x ξl
-            nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float64).T.dot(self.err[l])
+            nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float32).T.dot(self.err[l])
 
         return nabla_w, nabla_b
+
+    def fit_params(self, x, y):
+        nabla_w, nabla_b = self.backprop(x, y)
+        length = x.shape[0]
+
+        for l in range(1, self.L):
+            self.w[l] -= self.eta * nabla_w[l] / np.float32(length) \
+                         - self.eta * self.l1_rate / np.float32(length)
+            self.b[l] -= self.eta * nabla_b[l] / np.float32(length) \
+                         - self.eta * self.l1_rate / np.float32(length)
 
     def sgd(self, train_data, cv_data=None):
         """
         stochastic gradient descent
         """
         scores = []
+        scores_diff = []
 
         for epoch in range(self.epochs):
             np.random.shuffle(train_data)  # inplace shuffle
-
             batch = train_data[:self.mini_batch_size]
-            x, y = zip(*batch)
-            x = np.array(x)
-            y = np.array(y)
 
-            nabla_w, nabla_b = self.backprop(x, y)
+            if self.mode == "batch":
+                x, y = zip(*batch)
+                x = np.array(x)
+                y = np.array(y)
 
-            for l in range(1, self.L):
-                self.w[l] -= self.eta * nabla_w[l] / np.float64(len(batch)) \
-                             - self.eta * self.l1_rate / np.float64(len(batch))
-                self.b[l] -= self.eta * nabla_b[l] / np.float64(len(batch)) \
-                             - self.eta * self.l1_rate / np.float64(len(batch))
+                self.fit_params(x, y)
+
+            elif self.mode == "online":
+                for x, y in batch:
+                    self.fit_params(x[:, np.newaxis].T, y[:, np.newaxis].T)
 
             if cv_data:
                 matches, score = self.evaluate(cv_data)
+                score_diff = self.prev_score - score
 
                 scores.append(score)
+                scores_diff.append(score_diff)
+
+
                 sys.stdout.write(
-                        '\r' + "Epoch {0}: {1} / {2} |".format(epoch, matches, len(cv_data))
+                        '\r' + "Epoch {0}: {1} / {2} | {3} | {4}".format(epoch, matches,
+                                                                         len(cv_data), score,
+                                                                         score_diff)
                 )
                 sys.stdout.flush()
 
-        return scores
+                self.prev_score = score
+
+                # if abs(score_diff) < 0.0002:
+                #     break
+
+        return scores_diff, scores
 
     def evaluate(self, cv_data):
         x, y = zip(*cv_data)
@@ -228,7 +252,7 @@ if __name__ == '__main__':
         [1, 0],
     ])
 
-    train_data = zip(normalize(x_train.astype(np.float64)), y_train.astype(np.float64))
+    train_data = zip(normalize(x_train.astype(np.float32)), y_train.astype(np.float32))
 
     nn = NNMiniBatch([2, 10, 2], [LogisticFunc, IdentyFunc], QuadraticCost,
                      epochs=100, mini_batch_size=2, eta=0.1)
@@ -241,7 +265,7 @@ if __name__ == '__main__':
         [130, 5],
     ])
 
-    test_data = normalize(x_test.astype(np.float64))
+    test_data = normalize(x_test.astype(np.float32))
 
     print nn.feedforward(test_data)
     print np.argmax(nn.feedforward(test_data), axis=1)
