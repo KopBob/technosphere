@@ -82,6 +82,7 @@ def merge(gen1, gen2):
             break
 
 
+
 def merge_indexes(pathes):
     print "Intut: ", pathes
     if len(pathes) == 1:

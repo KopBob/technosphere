@@ -1,6 +1,9 @@
 import sys
 import codecs
 import unicodedata
+import struct
+import itertools
+import collections
 
 from nltk.corpus import stopwords
 
@@ -26,9 +29,9 @@ tbl = {i: u' ' for i in xrange(sys.maxunicode)
 def text2tokens(text):
     if len(text) == 0:
         return []
-    text_cleaned = text.lower().replace("nbsp_place_holder", " ").translate(tbl)
+    text_cleaned = text.lower().translate(tbl)
     tokens = text_cleaned.split()
-    tokens = [t for t in set(tokens) if t not in stopwords.words('russian')]
+    # tokens = [t for t in set(tokens) if t not in stopwords.words('russian')]
     return tokens
 
 
@@ -36,3 +39,22 @@ def cumdiff(a):
     a = [0] + a
     for i in range(1, len(a)):
         yield a[i] - a[i - 1]
+
+
+def binary_file_reader(path, structure, bytes):
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(bytes), ''):
+            yield struct.unpack(structure, chunk)
+
+
+def str_to_bool(s):
+    if s == 'True' or s is True:
+        return True
+    elif s == 'False' or s is False:
+        return False
+    else:
+        raise ValueError
+
+
+def consume(iterator, n):
+    collections.deque(itertools.islice(iterator, n))
