@@ -21,40 +21,58 @@ PRIORITY = {
 NONTERM = [SP, NEG, AND, OR, LBR, RBR, EMP]
 
 
+class Operand:
+    def __init__(self, body, sign=True):
+        self.body = body
+        self.sign = sign
+
+
 class BoolQueryParser:
     def __init__(self, get_term_data):
         self.get_term_data = get_term_data
 
-    def apply_action(self, action, operands):
+    def apply_action(self, action, operands, actions=None):
         if action == NEG:
-            op1 = operands.pop()
-
-            _str_act = "!(%s)" % op1
-            operands.append(set([]))
+            op = operands.pop()
+            op.sign = False
+            operands.append(op)
 
         if action == AND:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            if isinstance(op1, unicode):
-                op1 = self.get_term_data(op1)
+            if isinstance(op1.body, unicode):
+                op1.body = self.get_term_data(op1.body)
 
-            if isinstance(op2, unicode):
-                op2 = self.get_term_data(op2)
+            if isinstance(op2.body, unicode):
+                op2.body = self.get_term_data(op2.body)
 
-            operands.append(op1 & op2)
+            op = None
+
+            if op1.sign and op2.sign:
+                op = Operand(op1.body & op2.body)
+            elif not op1.sign:
+                op = Operand(op2.body - op1.body)
+            elif not op2.sign:
+                op = Operand(op1.body - op2.body)
+            elif not op1.sign and not op2.sign:
+                op = Operand(op1.body & op2.body, False)
+
+            operands.append(op)
 
         if action == OR:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            if isinstance(op1, unicode):
-                op1 = self.get_term_data(op1)
+            if isinstance(op1.body, unicode):
+                op1.body = self.get_term_data(op1.body)
 
-            if isinstance(op2, unicode):
-                op2 = self.get_term_data(op2)
+            if isinstance(op2.body, unicode):
+                op2.body = self.get_term_data(op2.body)
 
-            operands.append(op1 | op2)
+            op = Operand(op1.body | op2.body)
+
+            operands.append(op)
 
     def parse_query(self, query):
         operands = [EMP]
@@ -88,7 +106,8 @@ class BoolQueryParser:
                     k += 1
 
                 consume(iterator, k - 1)
-                operands.append(curr_word.strip())
+                op = Operand(curr_word.strip(), True)
+                operands.append(op)
                 curr_word = ""
 
             if curr_act:
@@ -104,7 +123,7 @@ class BoolQueryParser:
                     continue
 
                 prev_act = actions.pop()
-                if PRIORITY[prev_act] > PRIORITY[curr_act]:
+                if PRIORITY[prev_act] >= PRIORITY[curr_act]:
                     self.apply_action(prev_act, operands)
                 else:
                     actions.append(prev_act)
@@ -114,6 +133,6 @@ class BoolQueryParser:
         for act in reversed(actions):
             self.apply_action(act, operands)
 
-        if isinstance(operands[1], unicode):
-            operands[1] = self.get_term_data(operands[1])
-        return operands[1]
+        if isinstance(operands[1].body, unicode):
+            return self.get_term_data(operands[1].body)
+        return operands[1].body
