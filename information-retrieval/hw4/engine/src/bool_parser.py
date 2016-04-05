@@ -1,4 +1,6 @@
-from src.misc import str_to_bool, consume
+# coding=utf-8
+
+from .misc import str_to_bool, consume
 
 SP = ' '
 EMP = None

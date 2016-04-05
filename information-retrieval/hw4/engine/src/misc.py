@@ -1,3 +1,4 @@
+# coding=utf-8
 import sys
 import codecs
 import unicodedata
@@ -5,7 +6,7 @@ import struct
 import itertools
 import collections
 
-from nltk.corpus import stopwords
+# from nltk.corpus import stopwords
 
 
 def readfile(filepath, delim=" ", with_none=True):

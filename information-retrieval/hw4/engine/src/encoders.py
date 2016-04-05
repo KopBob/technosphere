@@ -1,3 +1,4 @@
+# coding=utf-8
 class VarByte:
     def encode_number(self, n):
         bytes = []

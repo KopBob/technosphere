@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import sys
 import codecs
 
@@ -80,7 +82,6 @@ def merge(gen1, gen2):
                 yield val1
                 val1 = gen1.next()
             break
-
 
 
 def merge_indexes(pathes):

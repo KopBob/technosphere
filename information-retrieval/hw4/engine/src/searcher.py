@@ -1,12 +1,13 @@
+# coding=utf-8
 import mmap
 import array
 
 import mmh3
 import numpy as np
 
-from src.encoders import VarByte
-from src.misc import binary_file_reader
-from src.bool_parser import BoolQueryParser
+from .encoders import VarByte
+from .misc import binary_file_reader
+from .bool_parser import BoolQueryParser
 
 
 def load_documents_registry(path_to_dr):
@@ -83,9 +84,9 @@ class Searcher:
     def search(self, query):
         results = self.query_parser.parse_query(query)
 
-        print query
+        print query.encode("utf-8")
         print len(results)
-        for res in results:
+        for res in sorted(results):
             print self.documents_registry[res]
 
     def get_term_documents(self, pos=None, offset=None, **args):

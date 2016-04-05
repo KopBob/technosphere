@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 from __future__ import print_function
 
@@ -14,4 +15,4 @@ if __name__ == '__main__':
                         path_to_documents_registry="../storage/documents_registry.txt")
 
     for d in data_files.split("\n"):
-        searcher.search(unicode(d.decode("utf-8")))
+        searcher.search(d.decode('utf-8'))
