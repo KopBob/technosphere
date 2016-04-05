@@ -20,51 +20,45 @@ NONTERM = [SP, NEG, AND, OR, LBR, RBR, EMP]
 
 
 class BoolQueryParser:
-    @staticmethod
-    def apply_action(action, operands):
+    def __init__(self, get_term_data):
+        self.get_term_data = get_term_data
+
+    def apply_action(self, action, operands):
         if action == NEG:
             op1 = operands.pop()
 
             _str_act = "!(%s)" % op1
-            print _str_act
-            operands.append(_str_act)
-
-            # operands.append(not str_to_bool(op1))
-
-            return True
+            operands.append(set([]))
 
         if action == AND:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            _str_act = "%s & %s" % (op1, op2)
-            print _str_act
-            operands.append(_str_act)
+            if isinstance(op1, unicode):
+                op1 = self.get_term_data(op1)
 
-            # operands.append(str_to_bool(op1) & str_to_bool(op2))
+            if isinstance(op2, unicode):
+                op2 = self.get_term_data(op2)
 
-            return True
+            operands.append(op1 & op2)
 
         if action == OR:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            _str_act = "%s | %s" % (op1, op2)
-            print _str_act
-            operands.append(_str_act)
+            if isinstance(op1, unicode):
+                op1 = self.get_term_data(op1)
 
-            # operands.append(str_to_bool(op1) | str_to_bool(op2))
+            if isinstance(op2, unicode):
+                op2 = self.get_term_data(op2)
 
-            return True
+            operands.append(op1 | op2)
 
-        return False
-
-    @staticmethod
-    def parse_query(query):
+    def parse_query(self, query):
         operands = [EMP]
         actions = [EMP]
 
-        query = query + ' '  # FixIt
+        query = query.lower() + ' '  # FixIt
 
         curr_word = ""
 
@@ -92,7 +86,7 @@ class BoolQueryParser:
                     k += 1
 
                 consume(iterator, k - 1)
-                operands.append(curr_word)
+                operands.append(curr_word.strip())
                 curr_word = ""
 
             if curr_act:
@@ -103,17 +97,21 @@ class BoolQueryParser:
                 if curr_act == RBR:
                     act = actions.pop()
                     while act != LBR:
-                        BoolQueryParser.apply_action(act, operands)
+                        self.apply_action(act, operands)
                         act = actions.pop()
                     continue
 
                 prev_act = actions.pop()
                 if PRIORITY[prev_act] > PRIORITY[curr_act]:
-                    BoolQueryParser.apply_action(prev_act, operands)
+                    self.apply_action(prev_act, operands)
                 else:
                     actions.append(prev_act)
 
                 actions.append(curr_act)
 
         for act in reversed(actions):
-            BoolQueryParser.apply_action(act, operands)
+            self.apply_action(act, operands)
+
+        if isinstance(operands[1], unicode):
+            operands[1] = self.get_term_data(operands[1])
+        return operands[1]

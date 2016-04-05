@@ -1,7 +1,10 @@
+from __future__ import print_function
+
+import sys
+
 import os
 import struct
 import codecs
-import sys
 import time
 from collections import defaultdict
 
@@ -34,7 +37,7 @@ class Indexer:
 
         self.tmp_files = []
 
-        self.merged_index = None
+        self.path_to_merged_index = None
 
         try:
             os.makedirs(self.path_storage)
@@ -45,10 +48,10 @@ class Indexer:
             if e.errno != 17:
                 raise
 
-        print "flush_threshold - ", self.flush_threshold
+        # print "flush_threshold - ", self.flush_threshold
 
     def store_index(self, index):
-        stamp = int(time.time())
+        stamp = int(time.time()) + 10
         tmp_inverted_index = self.path_tmp_index_pattern % stamp
 
         with codecs.open(tmp_inverted_index, "w", "utf-8") as f:
@@ -58,6 +61,8 @@ class Indexer:
                             term, " ".join(str(x) for x in docs_ids)
                         )
                 )
+
+        print("   dump ", tmp_inverted_index, file=sys.stderr)
 
         self.tmp_files.append(tmp_inverted_index)
 
@@ -91,18 +96,19 @@ class Indexer:
             self.flush_indicator += len(doc_tokens) + 1
             self.terms_counter += len(doc_tokens)
 
-            sys.stdout.write('\r' + "{0} {1} {2}".format(self.docs_counter, self.terms_counter, self.flush_indicator))
-            sys.stdout.flush()
+            # sys.stdout.write('\r' + "{0} {1} {2}".format(self.docs_counter, self.terms_counter, self.flush_indicator))
+            # sys.stdout.flush()
 
             if self.flush_indicator > self.flush_threshold:
-                print "\n flush \n"
                 self.flush()
 
-        self.flush()
+        # self.flush()
 
     def merge(self):
-        self.merged_index = self._merge_all_indesex(self.tmp_files[:])
-        return self.merged_index
+        self.flush()
+
+        self.path_to_merged_index = self._merge_all_indesex(self.tmp_files[:])
+        return self.path_to_merged_index
 
     def _merge_two_indexes(self, gen1, gen2):
         val1 = gen1.next()
@@ -142,7 +148,7 @@ class Indexer:
         if len(files) == 1:
             return files[0]
 
-        print "input ", files
+        # print "input ", files
         merged_files = []
 
         for i in range(0, len(files), 2):
@@ -155,11 +161,16 @@ class Indexer:
             index1 = readfile(curr_files[0])
             index2 = readfile(curr_files[1])
 
-            print "   merging ", curr_files[0], curr_files[1]
+            # print "   merging ", curr_files[0], curr_files[1]
 
             merged_index = self._merge_two_indexes(index1, index2)
 
             merged_index_file = self.store_index(merged_index)
+            # print "   merged to", merged_index_file
+            os.remove(curr_files[0])
+            os.remove(curr_files[1])
+            # print "   remove", curr_files[0], curr_files[1]
+
             merged_files.append(merged_index_file)
 
         return self._merge_all_indesex(merged_files)
@@ -192,3 +203,4 @@ class IndexEncoder:
                     ii_f.write(b_body)
 
                     # curr_pos += len(b_body)
+        os.remove(path_to_raw_index)

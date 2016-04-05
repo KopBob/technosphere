@@ -12,7 +12,7 @@ curr_id = 1
 
 def create_inverted_index_from_file(path_to_file):
     global curr_id
-    print "Preparing %s ..." % path_to_file
+    # print "Preparing %s ..." % path_to_file
 
     documents_ids = defaultdict(int)
     inverted_index = defaultdict(list)
@@ -84,7 +84,7 @@ def merge(gen1, gen2):
 
 
 def merge_indexes(pathes):
-    print "Intut: ", pathes
+    # print "Intut: ", pathes
     if len(pathes) == 1:
         return pathes[0]
 
@@ -96,7 +96,7 @@ def merge_indexes(pathes):
             continue
 
         # merge
-        print "  Merging: ", part
+        # print "  Merging: ", part
         part0 = readfile(PATH_TO_INDEX_STORAGE + part[0])
         part1 = readfile(PATH_TO_INDEX_STORAGE + part[1])
 
