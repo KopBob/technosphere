@@ -5,10 +5,7 @@ SCRIPTPATH=`pwd`
 popd > /dev/null
 
 IFS=$"\n"
-my_var=`cat /dev/stdin`
-
-#echo $my_var
+queries=`cat /dev/stdin`
 
 IFS=$" "
-
-$SCRIPTPATH/search.py "$my_var"
+$SCRIPTPATH/search.py "$queries"

@@ -1,6 +1,9 @@
 # coding=utf-8
+import re
 
 from .misc import str_to_bool, consume
+from .generators import gen_subtract, gen_intersect, gen_union
+
 
 SP = ' '
 EMP = None
@@ -28,9 +31,6 @@ class Operand:
 
 
 class BoolQueryParser:
-    def __init__(self, get_term_data):
-        self.get_term_data = get_term_data
-
     def apply_action(self, action, operands, actions=None):
         if action == NEG:
             op = operands.pop()
@@ -41,22 +41,16 @@ class BoolQueryParser:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            if isinstance(op1.body, unicode):
-                op1.body = self.get_term_data(op1.body)
-
-            if isinstance(op2.body, unicode):
-                op2.body = self.get_term_data(op2.body)
-
             op = None
 
             if op1.sign and op2.sign:
-                op = Operand(op1.body & op2.body)
+                op = Operand(gen_intersect(op1.body, op2.body))
             elif not op1.sign:
-                op = Operand(op2.body - op1.body)
+                op = Operand(gen_subtract(op2.body, op1.body))
             elif not op2.sign:
-                op = Operand(op1.body - op2.body)
+                op = Operand(gen_subtract(op1.body, op2.body))
             elif not op1.sign and not op2.sign:
-                op = Operand(op1.body & op2.body, False)
+                op = Operand(gen_intersect(op1.body, op2.body), False)
 
             operands.append(op)
 
@@ -64,17 +58,11 @@ class BoolQueryParser:
             op2 = operands.pop()
             op1 = operands.pop()
 
-            if isinstance(op1.body, unicode):
-                op1.body = self.get_term_data(op1.body)
-
-            if isinstance(op2.body, unicode):
-                op2.body = self.get_term_data(op2.body)
-
-            op = Operand(op1.body | op2.body)
+            op = Operand(gen_union(op1.body, op2.body))
 
             operands.append(op)
 
-    def parse_query(self, query):
+    def parse_query(self, query, terms_gens):
         operands = [EMP]
         actions = [EMP]
 
@@ -106,7 +94,13 @@ class BoolQueryParser:
                     k += 1
 
                 consume(iterator, k - 1)
-                op = Operand(curr_word.strip(), True)
+                try:
+                    op = Operand(terms_gens[curr_word.strip()], True)
+                except KeyError:
+                    print curr_word.strip()
+                    for key in terms_gens.keys():
+                        print key,
+                    raise KeyError
                 operands.append(op)
                 curr_word = ""
 
@@ -133,6 +127,4 @@ class BoolQueryParser:
         for act in reversed(actions):
             self.apply_action(act, operands)
 
-        if isinstance(operands[1].body, unicode):
-            return self.get_term_data(operands[1].body)
         return operands[1].body

@@ -19,6 +19,9 @@ class VarByte:
             for b in self.encode_number(n):
                 yield b
 
+    def gen_decode(self, bytestream):
+        return self.decode(bytestream)
+
     def decode(self, bytestream):
         n = 0
         for byte in bytestream:

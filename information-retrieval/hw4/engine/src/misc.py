@@ -6,7 +6,43 @@ import struct
 import itertools
 import collections
 
+
 # from nltk.corpus import stopwords
+
+def gen_struct_unpack(bytestream, code):
+    for b in bytestream:
+        unpacked = struct.unpack(code, b)
+        if len(unpacked) > 1:
+            yield unpacked
+        else:
+            yield unpacked[0]
+
+
+def gen_bytes_from_file(filename, seek_offset=0, max_bytes=None, by=1, chunksize=8192):
+    if chunksize % by != 0:
+        raise ValueError("chunksize % by != 0")
+
+    f = open(filename, "rb")
+    f.seek(seek_offset)
+
+    try:
+        k_bytes = 0
+        while True:
+            chunk = f.read(chunksize)
+
+            if chunk:
+                for i in range(0, len(chunk), by):
+                    yield chunk[i:i + by]  # what if chunksize mod by != 0
+                    k_bytes += by
+
+                    if max_bytes is not None and k_bytes >= max_bytes:
+                        raise StopIteration
+            else:
+                raise StopIteration
+    except StopIteration:
+        pass
+    finally:
+        f.close()
 
 
 def readfile(filepath, delim=" ", with_none=True):
@@ -16,10 +52,10 @@ def readfile(filepath, delim=" ", with_none=True):
             term = data[0]
             docs = data[1:]
             docs[-1] = docs[-1][:-1]
-
             yield term, [int(d) for d in docs]
     if with_none:
-        while (1): yield None
+        while True:
+            yield None
 
 
 tbl = {i: u' ' for i in xrange(sys.maxunicode)
@@ -33,7 +69,7 @@ def text2tokens(text):
     text_cleaned = text.lower().translate(tbl)
     tokens = text_cleaned.split()
     # tokens = [t for t in set(tokens) if t not in stopwords.words('russian')]
-    return tokens
+    return set(tokens)
 
 
 def cumdiff(a):

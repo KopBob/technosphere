@@ -18,7 +18,7 @@ if __name__ == '__main__':
     encoding_type = sys.argv[1]
     data_files = sys.argv[2:]
 
-    indexer = Indexer("../storage/", flush_threshold=50)
+    indexer = Indexer("../storage/", flush_threshold=400)
 
     start = time.time()
 

@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import sys
+import uuid
 import os
 import struct
 import codecs
@@ -24,7 +25,6 @@ class Indexer:
         self.buff_inverted_index = defaultdict(list)
 
         self.docs_counter = 1
-        self.terms_counter = 1
 
         self.flush_indicator = 0
         self.flush_threshold = flush_threshold * 1024 * 1024 / 8.0
@@ -49,44 +49,43 @@ class Indexer:
             if e.errno != 17:
                 raise
 
-        # print "flush_threshold - ", self.flush_threshold
-
     def store_index(self, index):
-        stamp = int(time.time()) + 10
+        stamp = uuid.uuid4()
+
         tmp_inverted_index = self.path_tmp_index_pattern % stamp
-
         with codecs.open(tmp_inverted_index, "w", "utf-8") as f:
+            dump = []
             for term, docs_ids in index:
-                f.write(
-                        "%s %s\n" % (
-                            term, " ".join(str(x) for x in docs_ids)
-                        )
-                )
-
-        print("   dump ", tmp_inverted_index, file=sys.stderr)
+                dump.append("%s %s" % (term, " ".join(str(x) for x in docs_ids)))
+            f.write("\n".join(dump) + "\n")
 
         self.tmp_files.append(tmp_inverted_index)
 
         return tmp_inverted_index
 
     def flush(self):
+        if len(self.buff_documents_registry.items()) == 0:
+            return
+
+        # flush documents registry
         with codecs.open(self.path_documents_registry, "a", "utf-8") as f:
-            for doc_id, doc_url in self.buff_documents_registry.iteritems():
-                f.write("%s %s\n" % (doc_id, doc_url))
-
-        buff_terms_registry_sorted = sorted(self.buff_inverted_index.iteritems(), key=lambda x: x[0])
-
-        self.store_index(buff_terms_registry_sorted)
-
+            dump = []
+            for doc_id, doc_url in self.buff_documents_registry.items():
+                dump.append("%s %s" % (doc_id, doc_url))
+            f.write("\n".join(dump) + "\n")
         self.buff_documents_registry.clear()
+
+        # flush inverted index buffer
+        self.store_index(sorted(self.buff_inverted_index.iteritems(),
+                                key=lambda x: x[0]))
         self.buff_inverted_index.clear()
 
         self.flush_indicator = 0
 
     def index(self, documents_stream):
         for doc in documents_stream:
-
             doc_id = self.docs_counter
+
             self.buff_documents_registry[doc_id] = doc.url
 
             doc_tokens = text2tokens(doc.text)
@@ -95,15 +94,9 @@ class Indexer:
 
             self.docs_counter += 1
             self.flush_indicator += len(doc_tokens) + 1
-            self.terms_counter += len(doc_tokens)
-
-            # sys.stdout.write('\r' + "{0} {1} {2}".format(self.docs_counter, self.terms_counter, self.flush_indicator))
-            # sys.stdout.flush()
 
             if self.flush_indicator > self.flush_threshold:
                 self.flush()
-
-        # self.flush()
 
     def merge(self):
         self.flush()
@@ -121,11 +114,7 @@ class Indexer:
                 val1 = gen1.next()
 
             elif val1[0] == val2[0]:
-                # merge
-                val = val1
-
                 yield (val1[0], sorted(val1[1] + val2[1]))
-
                 val1 = gen1.next()
                 val2 = gen2.next()
 
@@ -149,7 +138,6 @@ class Indexer:
         if len(files) == 1:
             return files[0]
 
-        # print "input ", files
         merged_files = []
 
         for i in range(0, len(files), 2):
@@ -162,16 +150,11 @@ class Indexer:
             index1 = readfile(curr_files[0])
             index2 = readfile(curr_files[1])
 
-            # print "   merging ", curr_files[0], curr_files[1]
-
             merged_index = self._merge_two_indexes(index1, index2)
 
             merged_index_file = self.store_index(merged_index)
-            # print "   merged to", merged_index_file
             os.remove(curr_files[0])
             os.remove(curr_files[1])
-            # print "   remove", curr_files[0], curr_files[1]
-
             merged_files.append(merged_index_file)
 
         return self._merge_all_indesex(merged_files)
