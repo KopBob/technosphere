@@ -6,7 +6,7 @@ import re
 import mmh3
 import numpy as np
 
-from .encoders import VarByte
+from .encoders import VarByte, Simple9
 from .misc import binary_file_reader, gen_bytes_from_file, gen_struct_unpack
 from .generators import gen_cumsum, gen_empty
 from .bool_parser import BoolQueryParser
@@ -71,8 +71,8 @@ def gen_term_documents(path, term, decoder):
         return gen_empty()
 
     bytestream = gen_bytes_from_file(path, term.get("seek_offset"), term.get("size"))
-    numstream = gen_struct_unpack(bytestream, code='B')
-    decoded_bytes = decoder.gen_decode(numstream)
+    # numstream = gen_struct_unpack(bytestream, code='B')
+    decoded_bytes = decoder.gen_decode(bytestream)
     doc_ids = gen_cumsum(decoded_bytes)
 
     return doc_ids
@@ -98,7 +98,7 @@ class Searcher2:
     def __init__(self, path_to_inverted_index,
                  path_to_term_dictionary,
                  path_to_documents_registry,
-                 encoder=VarByte,
+                 encoder=Simple9,
                  query_parser=BoolQueryParser):
         self.encoder = encoder()
         self.path_to_inverted_index = path_to_inverted_index
@@ -207,7 +207,9 @@ class Searcher:
 
             raw_data = array.array("B")
             raw_data.fromstring(mm[pos:pos + offset])
-            return set(np.cumsum(list(self.encoder.decode(raw_data))))
+
+            return set(np.cumsum(list(self.encoder.decode(mm[pos:pos + offset]))))
+
             #
             # def get_gen_term_documents(self, pos=None, offset=None, **args):
             #     if pos is None:

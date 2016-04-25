@@ -13,7 +13,7 @@ from collections import defaultdict
 import mmh3
 
 from .misc import text2tokens, readfile, cumdiff
-from .encoders import VarByte
+from .encoders import VarByte, Simple9
 
 
 class Indexer:
@@ -162,7 +162,7 @@ class Indexer:
 
 class IndexEncoder:
     def __init__(self, path_to_inverted_index, path_to_term_dictionary,
-                 encoder=VarByte):
+                 encoder=Simple9):
         self.encoder = encoder()
 
         self.path_to_inverted_index = path_to_inverted_index
@@ -177,7 +177,8 @@ class IndexEncoder:
                 # curr_pos = 0
 
                 for i, (term, docs_ids) in enumerate(raw_index):
-                    b_body = bytearray(self.encoder.encode(cumdiff(docs_ids)))
+                    # b_body = bytearray(self.encoder.encode(cumdiff(docs_ids)))
+                    b_body = "".join(self.encoder.encode(cumdiff(docs_ids)))
 
                     term_hash = mmh3.hash(term.encode('utf-8'))
                     b_info = struct.pack('ii', term_hash, len(b_body))
