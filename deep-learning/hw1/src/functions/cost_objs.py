@@ -23,9 +23,8 @@ class CrossEntropyCost:
 
 class MulticlassCrossEntropyCost:
     @staticmethod
-    @np.vectorize
     def function(y, z):
-        return -np.sum(y * np.log(z))
+        return -np.sum(np.sum(y * np.log(z)))/np.float64(y.shape[0])
 
     @staticmethod
     def derivative(y, z):

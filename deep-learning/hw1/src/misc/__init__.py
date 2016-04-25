@@ -16,11 +16,14 @@ def convert2readable(x, norm=False):
     return _x
 
 
-def transform_data(data):
+def transform_data(data, norm=True):
     x, y = zip(*data)
     y = LabelBinarizer().fit_transform(y)
 
-    x = normalize(np.array(x, dtype=np.float64))
+    if norm:
+        x = normalize(np.array(x, dtype=np.float64))
+    else:
+        x = np.array(x, dtype=np.float64)
     y = np.array(y, dtype=np.float64)
 
     return zip(x, y)

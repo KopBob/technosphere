@@ -82,8 +82,13 @@ from functions.activation_objs import *
 
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
-                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch", stop_rate=0.0):
+                 epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch", stop_rate=0.0,
+                 isr=[1], r=0.05, betta=0.0, lyamda=0.1):
         self.eta = eta
+        self.isr = isr
+        self.r = r
+        self.betta = betta
+        self.lyamda = lyamda
         self.mode = mode
         self.stop_rate = stop_rate
         self.l1_rate = l1_rate
@@ -115,6 +120,7 @@ class NNMiniBatch:
 
         self.a = [None] * self.L
         self.z = [None] * self.L
+        self.ro = [0.0] * self.L
         self.err = [None] * self.L
 
         self.prev_score = 0
@@ -142,6 +148,7 @@ class NNMiniBatch:
 
         nabla_w = [None] * self.L
         nabla_b = [None] * self.L
+        ro = [0] * self.L
 
         # error backpropagation
 
@@ -150,8 +157,13 @@ class NNMiniBatch:
         self.err[-1] = self.h_d[-1](self.a[-1]) * self.c_d(y, self.z[-1])
 
         for l in reversed(range(1, self.L - 1)):
+            sparse_reg = 0.0
+            if l in self.isr:
+                ro = np.sum(self.z[l], axis=0) / np.float64(x.shape[0])
+                sparse_reg = self.betta * (- self.r / ro + (1 - self.r) / (1 - ro))
+
             # tau =  ξl+1 x Wl+1
-            tau_l = self.err[l + 1].dot(self.w[l + 1])
+            tau_l = self.err[l + 1].dot(self.w[l + 1]) + sparse_reg
 
             # ξl = h'(al) * tau
             self.err[l] = self.h_d[l](self.a[l]) * tau_l
@@ -161,19 +173,9 @@ class NNMiniBatch:
             nabla_w[l] = self.err[l].T.dot(self.z[l - 1])
 
             # ∇b_l = I.T x ξl
-            nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float32).T.dot(self.err[l])
+            nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float64).T.dot(self.err[l])
 
-        return nabla_w, nabla_b
-
-    def fit_params(self, x, y):
-        nabla_w, nabla_b = self.backprop(x, y)
-        length = x.shape[0]
-
-        for l in range(1, self.L):
-            self.w[l] -= self.eta * nabla_w[l] / np.float32(length) \
-                         - self.eta * self.l1_rate / np.float32(length)
-            self.b[l] -= self.eta * nabla_b[l] / np.float32(length) \
-                         - self.eta * self.l1_rate / np.float32(length)
+        return nabla_w, nabla_b, ro
 
     def sgd(self, train_data, cv_data=None):
         """
@@ -191,11 +193,28 @@ class NNMiniBatch:
                 x = np.array(x)
                 y = np.array(y)
 
-                self.fit_params(x, y)
+                nabla_w, nabla_b, ro = self.backprop(x, y)
+                for l in range(1, self.L):
+                    self.w[l] = (1 - self.eta * self.lyamda / x.shape[0]) * self.w[l] \
+                                - self.eta * nabla_w[l] / np.float64(x.shape[0])
+                    self.b[l] -= self.eta * nabla_b[l] / np.float64(x.shape[0])
 
             elif self.mode == "online":
                 for x, y in batch:
-                    self.fit_params(x[:, np.newaxis].T, y[:, np.newaxis].T)
+                    x = x[:, np.newaxis].T
+                    y = y[:, np.newaxis].T
+
+                    nabla_w, nabla_b, ro = self.backprop(x, y)
+
+                    for l in range(1, self.L):
+                        if l in self.isr:
+                            ro = ro[l]
+                            sparse_reg = - self.r / ro + (1 - self.r) / (1 - ro)
+                            self.ro[l] += np.sum(sparse_reg)
+
+                        self.w[l] -= self.eta * nabla_w[l]
+                        # (1.0 - self.eta * 1.0 / np.float32(batch_size)) * self.w[l] \
+                        self.b[l] -= self.eta * nabla_b[l]
 
             if cv_data:
                 matches, score = self.evaluate(cv_data)
@@ -205,13 +224,12 @@ class NNMiniBatch:
                 scores_diff.append(score_diff)
 
                 if len(scores) > 10:
-                    score_diff = np.mean(np.abs(scores_diff[epoch-10:epoch]))
-
+                    score_diff = np.mean(np.abs(scores_diff[epoch - 10:epoch]))
 
                 sys.stdout.write(
-                        '\r' + "Epoch {0}: {1} / {2} | {3} | {4}".format(epoch, matches,
-                                                                         len(cv_data), score,
-                                                                         score_diff)
+                    '\r' + "Epoch {0}: {1} / {2} | {3} | {4}".format(epoch, matches,
+                                                                     len(cv_data), score,
+                                                                     score_diff)
                 )
                 sys.stdout.flush()
 
@@ -230,12 +248,12 @@ class NNMiniBatch:
 
         y_pred = self.feedforward(x)
 
-        matches = np.sum(np.argmax(y_pred, axis=1) == np.argmax(y, axis=1))
+        matches = 0  # np.sum(np.argmax(y_pred, axis=1) == np.argmax(y, axis=1))
         score = self.c(y, y_pred)
         return matches, score
 
 
-if __name__ == '__main__':
+def net_test():
     x_train = np.array([
         [-10, 5],
         [-20, 4],
@@ -277,3 +295,33 @@ if __name__ == '__main__':
     # nn.predict(test_data)
 
     # print nn.w
+
+
+def autoencoder_test():
+    x_train = np.array([
+        [-10, 5],
+        [-20, 4],
+        [100, 7],
+        [140, 5],
+    ])
+
+    train_data = zip(normalize(x_train.astype(np.float32)), normalize(x_train.astype(np.float32)))
+    nn = NNMiniBatch([2, 10, 2], [LogisticFunc, IdentyFunc], QuadraticCost,
+                     epochs=30, mini_batch_size=2, eta=0.04, mode="online")
+    nn.sgd(train_data)
+
+    x_test = np.array([
+        [-10, 4],
+        [-15, 2],
+        [120, 1],
+        [130, 5],
+    ])
+
+    test_data = normalize(x_test.astype(np.float32))
+
+    print nn.feedforward(test_data)
+
+
+if __name__ == '__main__':
+    # net_test()
+    autoencoder_test()
