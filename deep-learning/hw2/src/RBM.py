@@ -12,11 +12,13 @@ sample = lambda p: (p > np.random.uniform(0, 1, p.shape)).astype(np.float32)
 
 
 class RBM:
-    def __init__(self, size, eta, batch_size, epochs, momentum=0.0, w=None, a=None, b=None):
+    def __init__(self, size, eta, batch_size, epochs,
+                 mode='bern', momentum=0.0, w=None, a=None, b=None):
         self.v_size, self.h_size = size
         self.eta = eta
         self.batch_size = batch_size
         self.epochs = epochs
+        self.mode = mode
         self.momentum = momentum
 
         self.w = np.random.normal(0, 0.1, (self.v_size, self.h_size)) if w is None else w
@@ -33,7 +35,10 @@ class RBM:
         return sigmoid(np.dot(visible, self.w) + self.b)
 
     def visible_step(self, hidden):
-        return sigmoid(np.dot(hidden, self.w.T) + self.a)
+        if self.mode == 'bern':
+            return sigmoid(np.dot(hidden, self.w.T) + self.a)
+        elif self.mode == 'gauss':
+            return np.dot(hidden, self.w.T) + self.a
 
     def contrastive_divergence(self, batch):
         self.delta_w *= self.momentum
@@ -44,7 +49,7 @@ class RBM:
 
         # CD-k, уже при k = 1 качество не сильно уступает большим значениям,
         # но выигрыш в скорости значительный => будем делать только один проход без цикла.
-
+        # P(h|v)
         p_hid = self.hidden_step(vis)
 
         self.delta_w += np.dot(vis.T, p_hid)
@@ -79,7 +84,7 @@ class RBM:
 
                 if cv_data is not None:
                     pred_data = self.visible_step(sample(self.hidden_step(cv_data)))
-                    score = np.mean(np.sum((cv_data - pred_data) ** 2, axis=1))
+                    score = np.mean(((cv_data - pred_data) ** 2))
                     self.scores.append(score)
 
                     sys.stdout.write('\r' + "%s / %s | %s" \
