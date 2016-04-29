@@ -80,20 +80,33 @@ from functions.activation_objs import *
 # ] (NL x 1)   ξj =  h'(aj) * np.dot(Wj+1.T, ξj+1)
 
 
+
+# Make right initialization
+# Add Regularization L1, L2
+# Add momentum
+# Add learning rate annealing
+# Use ReLU
+# Dropout
+# Track loss and
+
+
+
 class NNMiniBatch:
     def __init__(self, sizes, activation_functions, cost_function,
                  epochs=1, eta=0.1, mini_batch_size=10, l1_rate=0.0, mode="batch", stop_rate=0.0,
-                 isr=[1], r=0.05, betta=0.0, lyamda=0.1):
+                 isr=[], r=0.05, betta=0.0, l2_rate=0.1, momentum=0.0, decay_rate=0.0):
         self.eta = eta
         self.isr = isr
         self.r = r
         self.betta = betta
-        self.lyamda = lyamda
+        self.l2_rate = l2_rate
+        self.momentum = momentum
         self.mode = mode
         self.stop_rate = stop_rate
         self.l1_rate = l1_rate
         self.epochs = epochs
         self.mini_batch_size = mini_batch_size
+        self.decay_rate = decay_rate
 
         self.h = [DummyFunc.function] + \
                  [f.function for f in activation_functions]
@@ -108,15 +121,15 @@ class NNMiniBatch:
         # [3, 2, 3]
         # w_sizes - [(2, 3), (3, 2)]
         # b_sizes - [(1, 2), (1, 3)]
-        w_sizes = zip(sizes[1:], sizes[:-1])
-        b_sizes = zip(np.tile(1, len(sizes) - 1), sizes[1:])
+        self.w_sizes = zip(sizes[1:], sizes[:-1])
+        self.b_sizes = zip(np.tile(1, len(sizes) - 1), sizes[1:])
 
-        print "w_sizes", w_sizes
-        print "b_sizes", b_sizes
+        print "w_sizes", self.w_sizes
+        print "b_sizes", self.b_sizes
 
-        self.w = [[]] + [np.random.normal(0, 0.1, s) for s in w_sizes]
-        # self.w = [[]] + [np.zeros(s) for s in w_sizes]
-        self.b = [[]] + [np.ones(s, dtype=np.float32) for s in b_sizes]
+        self.w = [[]] + [np.random.normal(0, 0.1, s) for s in self.w_sizes]
+        # self.w = [[]] + [np.zeros(s, dtype=np.float32) for s in w_sizes]
+        self.b = [[]] + [np.zeros(s, dtype=np.float32) for s in self.b_sizes]
 
         self.a = [None] * self.L
         self.z = [None] * self.L
@@ -124,6 +137,8 @@ class NNMiniBatch:
         self.err = [None] * self.L
 
         self.prev_score = 0
+
+        self.scores = []
 
     def feedforward(self, x):
         """
@@ -175,55 +190,63 @@ class NNMiniBatch:
             # ∇b_l = I.T x ξl
             nabla_b[l] = np.ones((self.err[l].shape[0], 1), dtype=np.float64).T.dot(self.err[l])
 
-        return nabla_w, nabla_b, ro
+        return nabla_w, nabla_b
 
     def sgd(self, train_data, cv_data=None):
-        """
-        stochastic gradient descent
-        """
-        scores = []
         scores_diff = []
 
         for epoch in range(self.epochs):
             np.random.shuffle(train_data)  # inplace shuffle
             batch = train_data[:self.mini_batch_size]
 
+            delta_w = [[]] + [np.zeros(s, dtype=np.float32) for s in self.w_sizes]
+            delta_b = [[]] + [np.zeros(s, dtype=np.float32) for s in self.b_sizes]
+
+            cache_w = [[]] + [np.zeros(s, dtype=np.float32) for s in self.w_sizes]
+            cache_b = [[]] + [np.zeros(s, dtype=np.float32) for s in self.b_sizes]
+
             if self.mode == "batch":
                 x, y = zip(*batch)
                 x = np.array(x)
                 y = np.array(y)
 
-                nabla_w, nabla_b, ro = self.backprop(x, y)
+                nabla_w, nabla_b = self.backprop(x, y)
                 for l in range(1, self.L):
-                    self.w[l] = (1 - self.eta * self.lyamda / x.shape[0]) * self.w[l] \
-                                - self.eta * nabla_w[l] / np.float64(x.shape[0])
-                    self.b[l] -= self.eta * nabla_b[l] / np.float64(x.shape[0])
+                    grad_w = nabla_w[l] / float(x.shape[0])
+                    grad_b = nabla_b[l] / float(x.shape[0])
 
-            elif self.mode == "online":
-                for x, y in batch:
-                    x = x[:, np.newaxis].T
-                    y = y[:, np.newaxis].T
+                    if self.l2_rate > 0.0:
+                        grad_w += self.l2_rate * self.w[l]
 
-                    nabla_w, nabla_b, ro = self.backprop(x, y)
+                    # v_prev = v # back this up
+                    delta_w_prev = delta_w[l]
+                    delta_b_prev = delta_b[l]
 
-                    for l in range(1, self.L):
-                        if l in self.isr:
-                            ro = ro[l]
-                            sparse_reg = - self.r / ro + (1 - self.r) / (1 - ro)
-                            self.ro[l] += np.sum(sparse_reg)
+                    # Adagrad
+                    # cache_w[l] += self.decay_rate * cache_w[l] + (1 - self.decay_rate) * grad_w ** 2
+                    # cache_b[l] += self.decay_rate * cache_b[l] + (1 - self.decay_rate) * grad_b ** 2
 
-                        self.w[l] -= self.eta * nabla_w[l]
-                        # (1.0 - self.eta * 1.0 / np.float32(batch_size)) * self.w[l] \
-                        self.b[l] -= self.eta * nabla_b[l]
+                    # v = mu * v - learning_rate * dx # velocity update stays the same
+                    delta_w[l] = self.momentum * delta_w[l] - self.eta * grad_w # / (np.sqrt(cache_w[l]) + 0.0001)
+                    delta_b[l] = self.momentum * delta_b[l] - self.eta * grad_b # / (np.sqrt(cache_b[l]) + 0.0001)
+
+                    # Nesterov momentum
+                    # x += -mu * v_prev + (1 + mu) * v # position update changes form
+                    # self.w[l] += - self.momentum * delta_w_prev + (1 + self.momentum) * delta_w[l]
+                    # self.b[l] += - self.momentum * delta_b_prev + (1 + self.momentum) * delta_b[l]
+
+                    self.w[l] += delta_w[l]
+                    self.b[l] += delta_b[l]
+
 
             if cv_data:
                 matches, score = self.evaluate(cv_data)
                 score_diff = self.prev_score - score
 
-                scores.append(score)
+                self.scores.append(score)
                 scores_diff.append(score_diff)
 
-                if len(scores) > 10:
+                if len(self.scores) > 10:
                     score_diff = np.mean(np.abs(scores_diff[epoch - 10:epoch]))
 
                 sys.stdout.write(
@@ -235,11 +258,9 @@ class NNMiniBatch:
 
                 self.prev_score = score
 
-                if len(scores) > 10:
+                if len(self.scores) > 10:
                     if abs(score_diff) < self.stop_rate:
                         break
-
-        return scores_diff, scores
 
     def evaluate(self, cv_data):
         x, y = zip(*cv_data)
@@ -248,8 +269,8 @@ class NNMiniBatch:
 
         y_pred = self.feedforward(x)
 
-        matches = 0  # np.sum(np.argmax(y_pred, axis=1) == np.argmax(y, axis=1))
-        score = self.c(y, y_pred)
+        matches = np.sum(np.argmax(y_pred, axis=1) == np.argmax(y, axis=1))
+        score = np.mean(self.c(y, y_pred))
         return matches, score
 
 
@@ -290,8 +311,10 @@ def net_test():
 
     test_data = normalize(x_test.astype(np.float32))
 
-    print nn.feedforward(test_data)
-    print np.argmax(nn.feedforward(test_data), axis=1)
+    print
+    nn.feedforward(test_data)
+    print
+    np.argmax(nn.feedforward(test_data), axis=1)
     # nn.predict(test_data)
 
     # print nn.w
@@ -319,7 +342,8 @@ def autoencoder_test():
 
     test_data = normalize(x_test.astype(np.float32))
 
-    print nn.feedforward(test_data)
+    print
+    nn.feedforward(test_data)
 
 
 if __name__ == '__main__':

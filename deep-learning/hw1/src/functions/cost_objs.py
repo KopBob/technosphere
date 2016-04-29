@@ -4,7 +4,7 @@ import numpy as np
 class QuadraticCost:
     @staticmethod
     def function(y, z):
-        return 0.5 * (np.sum((z - y) ** 2))/np.float64(y.shape[0])
+        return 0.5 * np.sum((z - y) ** 2, axis=1)
 
     @staticmethod
     def derivative(y, z):
